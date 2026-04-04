@@ -3,14 +3,20 @@
   
   let viewMode = $state('both');
 
-  const BASS_NOTE_OFFSETS: Record<string, number> = {
-    'E1':10,'F1':9.5,'G1':9,'Ab1':8.5,'A1':8,'Bb1':7.5,'B1':7,
-    'C2':6.5,'Db2':6,'D2':6,'Eb2':5.5,'E2':5,'F2':4.5,'F#2':4.5,'Gb2':4.5,
-    'G2':4,'Ab2':3.5,'A2':3,'Bb2':2.5,'B2':2,
-    'C3':1.5,'Db3':1,'D3':1,'Eb3':0.5,'E3':0,'F3':-0.5,'G3':-1,'A3':-1.5,'Bb3':-2
+  // 全音階（ダイアトニック）に基づいた五線譜（ヘ音記号）上の位置。
+  // 第5線（一番上の線）のA3を基準(0)とし、半音階の臨時記号はY座標に影響しない。
+  // ※将来的なリズムトレーニング機能拡張（休符や連符など）の際は、この座標計算の外で処理すること。
+  const DIATONIC_POSITIONS: Record<string, number> = {
+    'C1': 19, 'D1': 18, 'E1': 17, 'F1': 16, 'G1': 15, 'A1': 14, 'B1': 13,
+    'C2': 12, 'D2': 11, 'E2': 10, 'F2': 9,  'G2': 8,  'A2': 7,  'B2': 6,
+    'C3': 5,  'D3': 4,  'E3': 3,  'F3': 2,  'G3': 1,  'A3': 0,  'B3': -1,
+    'C4': -2, 'D4': -3, 'E4': -4
   };
+
   function getNoteY(noteName: string, topY: number, lineSpacing: number) {
-    const offset = BASS_NOTE_OFFSETS[noteName] ?? 5;
+    // 臨時記号（#やb）を取り除き基本の音名とオクターブのみを抽出
+    const baseNote = noteName.replace(/[#b]/g, '');
+    const offset = DIATONIC_POSITIONS[baseNote] ?? 6; // デフォルトは五線譜の中央付近(B2)
     return topY + offset * (lineSpacing / 2);
   }
 
@@ -44,7 +50,7 @@
     const lineSpacing = 9;
     const staffTop = 28;
     const staffH = lineSpacing * 4;
-    const svgH = staffTop + staffH + 30;
+    const svgH = staffTop + staffH + 70; // 最低音(E1など)の加線や音名テキストが重ならないよう十分な高さを確保
 
     svg.setAttribute('viewBox', `0 0 ${W} ${svgH}`);
     svg.setAttribute('height', svgH.toString());
@@ -90,7 +96,8 @@
       html += `<ellipse cx="${x}" cy="${y}" rx="5.5" ry="4" fill="${col}" transform="rotate(-15 ${x} ${y})"/>`;
       const stemDir = y > staffTop + staffH/2 ? -1 : 1;
       const stemLen = 28;
-      const stemX = stemDir === 1 ? x + 5 : x - 5;
+      // 符尾（棒）の位置: 符尾が下向き(stemDir=1)なら左側(x-5)、上向き(stemDir=-1)なら右側(x+5)
+      const stemX = stemDir === 1 ? x - 5 : x + 5;
       html += `<line x1="${stemX}" y1="${y}" x2="${stemX}" y2="${y + stemDir * stemLen}" stroke="${col}" stroke-width="1.5"/>`;
 
       if(state !== 'upcoming'){
