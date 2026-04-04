@@ -1,0 +1,35 @@
+:root {
+  --bg: #0a0c0f;
+  --panel: #111418;
+  --panel2: #161a20;
+  --border: #252a32;
+  --accent: #c8f53a;
+  --accent2: #3af5a0;
+  --danger: #f53a3a;
+  --warn: #f5a03a;
+  --text: #e8ecf0;
+  --muted: #5a6270;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif;
+  font-weight: 300;
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    radial-gradient(ellipse 80% 40% at 50% -10%, rgba(200,245,58,0.05) 0%, transparent 70%),
+    repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(255,255,255,0.01) 40px, rgba(255,255,255,0.01) 41px),
+    repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(255,255,255,0.01) 40px, rgba(255,255,255,0.01) 41px);
+  pointer-events: none; z-index: 0;
+}
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }

@@ -1,0 +1,49 @@
+<script lang="ts">
+  import MicPermission from '$lib/components/MicPermission.svelte';
+  import Header from '$lib/components/Header.svelte';
+  import ScoreSection from '$lib/components/ScoreSection.svelte';
+  import PitchMonitor from '$lib/components/PitchMonitor.svelte';
+  import ScorePanel from '$lib/components/ScorePanel.svelte';
+  import Transport from '$lib/components/Transport.svelte';
+  import ResultOverlay from '$lib/components/ResultOverlay.svelte';
+</script>
+
+<MicPermission />
+
+<Header />
+
+<div class="app">
+  <ScoreSection />
+
+  <aside class="right-panel">
+    <PitchMonitor />
+    <ScorePanel />
+  </aside>
+
+  <Transport />
+</div>
+
+<ResultOverlay />
+
+<style>
+.app {
+  position: relative; z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  grid-template-rows: 1fr auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.right-panel {
+  grid-column: 2; grid-row: 1;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+@media (max-width: 700px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: 320px 1fr auto; flex: 1; }
+  :global(.score-section) { grid-column:1 !important; grid-row:1 !important; border-right:none !important; border-bottom: 1px solid var(--border) !important; }
+  .right-panel { grid-column:1; grid-row:2; }
+  :global(.transport) { grid-column:1 !important; grid-row:3 !important; flex-wrap: wrap; }
+}
+</style>
