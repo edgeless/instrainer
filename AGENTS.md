@@ -19,7 +19,7 @@ AIコーディングエージェント向けの文書です。このドキュメ
   - `ScorePanel.svelte`: セッションスコア（正確度・偏差）とノート履歴ドットの表示。
   - `Transport.svelte`: 再生コントロール。
 - **ストア・状態 (`src/lib/stores`)**: `$state`を利用したクラスやクロージャを含む `.svelte.ts` ファイルを使用します。
-  - `audio.svelte.ts`: Web Audio APIロジック、デバイス選択、マイクのアクセス許可。
+  - `audio.svelte.ts`: Web Audio APIロジック、デバイス選択、マイクのアクセス許可。`localStorage` を使用して選択した入力・出力デバイスを永続化する。
   - `player.svelte.ts`: メトロノームと再生状態。
   - `score.svelte.ts`: スコア計算やセッション指標を保存するロジック。
 - **ユーティリティ (`src/lib/utils`)**: 副作用のない（純粋な）TypeScript関数群。例：セント値、周波数、ノートの計算を行う `pitch.ts`。
