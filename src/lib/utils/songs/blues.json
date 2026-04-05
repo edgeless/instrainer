@@ -1,6 +1,7 @@
 {
   "name": "Eブルーススケール",
   "bpm": 76,
+  "timeSignature": [4, 4],
   "notes": [
     {"name":"E2", "midi":28, "string":"E", "fret":0, "beat":0, "dur":1},
     {"name":"G2", "midi":31, "string":"E", "fret":3, "beat":1, "dur":1},
