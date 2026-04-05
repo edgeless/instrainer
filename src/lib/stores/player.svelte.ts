@@ -4,7 +4,7 @@ export const playerState = $state({
   currentSongKey: 'c_major',
   song: SONGS['c_major'] as Song,
   currentNoteIdx: 0,
-  currentBeat: 0,
+  currentBeat: -4,
   isPlaying: false,
   isRecording: false,
   tolerance: 20, // cents
@@ -17,7 +17,7 @@ export function setSong(key: string) {
     playerState.currentSongKey = key;
     playerState.song = SONGS[key];
     playerState.currentNoteIdx = 0;
-    playerState.currentBeat = 0;
+    playerState.currentBeat = -4;
   }
 }
 

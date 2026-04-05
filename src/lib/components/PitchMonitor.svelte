@@ -18,13 +18,13 @@
   let displayNoteName = $derived(
     isIdle 
       ? (detectedFreq > 0 ? midiToNoteName(freqToMidi(detectedFreq)) : '—')
-      : (playerState.song.notes[playerState.currentNoteIdx]?.name || '—')
+      : (playerState.currentBeat < 0 ? 'READY' : (playerState.song.notes[playerState.currentNoteIdx]?.name || '—'))
   );
   
   let displayNoteFreq = $derived(
     isIdle
       ? (detectedFreq > 0 ? detectedFreq.toFixed(2) + ' Hz' : '— Hz')
-      : (playerState.song.notes[playerState.currentNoteIdx] ? midiToFreq(playerState.song.notes[playerState.currentNoteIdx].midi).toFixed(2) + ' Hz' : '— Hz')
+      : (playerState.currentBeat < 0 ? '— Hz' : (playerState.song.notes[playerState.currentNoteIdx] ? midiToFreq(playerState.song.notes[playerState.currentNoteIdx].midi).toFixed(2) + ' Hz' : '— Hz'))
   );
   
   let animFrameId: number;
@@ -37,7 +37,7 @@
     if (audioState.analyserNode && audioState.pitchBuf && audioState.audioCtx) {
       const freq = detectPitch(audioState.analyserNode, audioState.pitchBuf, audioState.audioCtx.sampleRate);
       detectedFreq = freq;
-      if (playerState.isRecording && freq > 0) {
+      if (playerState.isRecording && freq > 0 && playerState.currentBeat >= 0) {
         scoreState.currentCentsHistory.push(freq);
       }
     } else {
@@ -51,8 +51,10 @@
         targetFreq = midiToFreq(freqToMidi(detectedFreq));
       }
     } else {
-      const note = playerState.song.notes[playerState.currentNoteIdx];
-      targetFreq = note ? midiToFreq(note.midi) : 0;
+      if (playerState.currentBeat >= 0) {
+        const note = playerState.song.notes[playerState.currentNoteIdx];
+        targetFreq = note ? midiToFreq(note.midi) : 0;
+      }
     }
     
     cents = detectedFreq > 0 && targetFreq > 0 ? freqToCents(detectedFreq, targetFreq) : null;

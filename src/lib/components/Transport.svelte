@@ -6,11 +6,12 @@
 
   let beatInterval: any = null;
 
-  // Formatting time
   function fmtTime(sec: number) {
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m}:${s.toString().padStart(2, '0')}`;
+    const isNeg = sec < 0;
+    const absSec = Math.abs(sec);
+    const m = Math.floor(absSec / 60);
+    const s = Math.floor(absSec % 60);
+    return `${isNeg ? '-' : ''}${m}:${s.toString().padStart(2, '0')}`;
   }
 
   // Derived progress values
@@ -34,8 +35,12 @@
         return;
       }
 
-      if (playerState.metronomeOn && audioState.audioCtx) {
-        playClick(playerState.currentBeat % 4 === 0);
+      if (audioState.audioCtx) {
+        if (playerState.currentBeat < 0) {
+          playClick(playerState.currentBeat === -4);
+        } else if (playerState.metronomeOn) {
+          playClick(playerState.currentBeat % 4 === 0);
+        }
       }
 
       const prevNoteIdx = playerState.currentNoteIdx;
@@ -123,7 +128,7 @@
     playerState.isRecording = false;
     if (beatInterval) clearTimeout(beatInterval);
     playerState.currentNoteIdx = 0;
-    playerState.currentBeat = 0;
+    playerState.currentBeat = -4;
     playerState.status = 'idle';
   }
 
@@ -151,7 +156,7 @@
     playerState.isRecording = true;
     playerState.isPlaying = true;
     playerState.currentNoteIdx = 0;
-    playerState.currentBeat = 0;
+    playerState.currentBeat = -4;
     resetScore();
     playerState.status = 'rec';
     scheduleBeat();
