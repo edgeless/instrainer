@@ -128,26 +128,101 @@
         html += `<text x="46" y="${staffTop + lineSpacing * 3.5}" font-size="14" fill="rgba(255,255,255,0.6)" font-family="serif" font-weight="bold">${timeSigDen}</text>`;
       }
 
-      // 行先頭の縦線・小節番号
+      // 行先頭の縦線
       html += `<line x1="${startX - 2}" y1="${staffTop}" x2="${startX - 2}" y2="${staffTop + staffH}" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>`;
-      html += `<text x="${startX + NOTE_X_OFFSET}" y="${staffTop - 4}" font-size="7" fill="rgba(255,255,255,0.25)" font-family="'Space Mono',monospace">${rowStartMeasure + 1}</text>`;
-
-      // 行内小節区切り線
-      for (let m = 1; m < rowMeasureCount; m++) {
-        const barBeat = rowStartBeat + m * beatsPerMeasure;
-        const bx = startX + ((barBeat - rowStartBeat) / rowBeats) * usableW + NOTE_X_OFFSET - beatSpacing / 2;
-        html += `<line x1="${bx}" y1="${staffTop}" x2="${bx}" y2="${staffTop + staffH}" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>`;
-        html += `<text x="${bx + 3}" y="${staffTop - 4}" font-size="7" fill="rgba(255,255,255,0.25)" font-family="'Space Mono',monospace">${rowStartMeasure + m + 1}</text>`;
-      }
 
       // 行末縦線
       html += `<line x1="${endX}" y1="${staffTop}" x2="${endX}" y2="${staffTop + staffH}" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>`;
 
-      // ノート描画
+      // ── 統合レイアウト: 音符と小節線を一括配置 ──
+      type RowElement = { type: 'note'; beat: number; noteIdx: number }
+                      | { type: 'bar';  beat: number; measureNum: number };
+
+      const elements: RowElement[] = [];
+
+      // 小節線（行内の区切り）
+      for (let m = 1; m < rowMeasureCount; m++) {
+        elements.push({
+          type: 'bar',
+          beat: rowStartBeat + m * beatsPerMeasure,
+          measureNum: rowStartMeasure + m + 1
+        });
+      }
+
+      // 音符
+      notes.forEach((note, i) => {
+        if (note.beat >= rowStartBeat && note.beat < rowEndBeat) {
+          elements.push({ type: 'note', beat: note.beat, noteIdx: i });
+        }
+      });
+
+      // ビート順でソート（同一ビートでは小節線を先に）
+      elements.sort((a, b) => a.beat - b.beat || (a.type === 'bar' ? -1 : 1));
+
+      // 最小間隔の定義
+      const MIN_NOTE_NOTE = 22;  // 音符⇔音符
+      const MIN_NOTE_BAR  = 16;  // 音符⇔小節線
+      const MIN_BAR_NOTE  = 16;  // 小節線⇔音符
+
+      function getMinGap(prev: RowElement, cur: RowElement): number {
+        if (prev.type === 'note' && cur.type === 'note') return MIN_NOTE_NOTE;
+        if (prev.type === 'note' && cur.type === 'bar')  return MIN_NOTE_BAR;
+        if (prev.type === 'bar'  && cur.type === 'note') return MIN_BAR_NOTE;
+        return 12; // bar⇔bar（通常起きない）
+      }
+
+      // 理想位置（ビート比例）を計算し、最小間隔を適用
+      const elPositions: number[] = [];
+      const layoutStart = startX + NOTE_X_OFFSET;
+      const layoutEnd = endX - 8;
+
+      elements.forEach((el, j) => {
+        const idealX = startX + ((el.beat - rowStartBeat) / rowBeats) * usableW + NOTE_X_OFFSET;
+        if (j === 0) {
+          elPositions.push(Math.max(idealX, layoutStart));
+        } else {
+          const minX = elPositions[j - 1] + getMinGap(elements[j - 1], el);
+          elPositions.push(Math.max(idealX, minX));
+        }
+      });
+
+      // はみ出し時はスケーリングで収める
+      if (elPositions.length > 1) {
+        const lastX = elPositions[elPositions.length - 1];
+        if (lastX > layoutEnd) {
+          const firstX = elPositions[0];
+          const scale = (layoutEnd - firstX) / (lastX - firstX);
+          for (let j = 1; j < elPositions.length; j++) {
+            elPositions[j] = firstX + (elPositions[j] - firstX) * scale;
+          }
+        }
+      }
+
+      // 位置のルックアップマップを構築
+      const noteXMap = new Map<number, number>();
+      const barXMap = new Map<number, number>();
+
+      elements.forEach((el, j) => {
+        if (el.type === 'note') noteXMap.set(el.noteIdx, elPositions[j]);
+        else barXMap.set(el.measureNum, elPositions[j]);
+      });
+
+      // ── 小節線・小節番号の描画 ──
+      // 行先頭の小節番号
+      html += `<text x="${layoutStart}" y="${staffTop - 4}" font-size="7" fill="rgba(255,255,255,0.25)" font-family="'Space Mono',monospace">${rowStartMeasure + 1}</text>`;
+
+      for (let m = 1; m < rowMeasureCount; m++) {
+        const mNum = rowStartMeasure + m + 1;
+        const bx = barXMap.get(mNum) ?? (startX + ((m * beatsPerMeasure) / rowBeats) * usableW + NOTE_X_OFFSET);
+        html += `<line x1="${bx}" y1="${staffTop}" x2="${bx}" y2="${staffTop + staffH}" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>`;
+        html += `<text x="${bx + 3}" y="${staffTop - 4}" font-size="7" fill="rgba(255,255,255,0.25)" font-family="'Space Mono',monospace">${mNum}</text>`;
+      }
+
+      // ── ノート描画 ──
       notes.forEach((note, i) => {
         if (note.beat < rowStartBeat || note.beat >= rowEndBeat) return;
 
-        const x = startX + ((note.beat - rowStartBeat) / rowBeats) * usableW + NOTE_X_OFFSET;
+        const x = noteXMap.get(i) ?? (startX + ((note.beat - rowStartBeat) / rowBeats) * usableW + NOTE_X_OFFSET);
         const y = getNoteY(note.name, staffTop, lineSpacing);
 
         let noteState = 'upcoming';
@@ -166,12 +241,46 @@
             html += `<line x1="${x - 8}" y1="${ly}" x2="${x + 8}" y2="${ly}" stroke="${col}" stroke-width="1"/>`;
         }
 
+        // durationに基づく音符の描き分け
+        const dur = note.dur ?? 1;
+        const isWhole = dur >= 4;
+        const isHalf = !isWhole && dur >= 2;
+        const isOpen = isWhole || isHalf;
+        const hasStem = !isWhole;
+        const isDotted = dur === 0.75 || dur === 1.5 || dur === 3;
+        const flagCount = dur <= 0.25 ? 2 : dur <= 0.5 ? 1 : dur <= 0.75 ? 1 : 0;
+
         // 符頭
-        html += `<ellipse cx="${x}" cy="${y}" rx="5.5" ry="4" fill="${col}" transform="rotate(-15 ${x} ${y})"/>`;
-        // 符尾
+        if (isOpen) {
+          html += `<ellipse cx="${x}" cy="${y}" rx="5.5" ry="4" fill="none" stroke="${col}" stroke-width="1.5" transform="rotate(-15 ${x} ${y})"/>`;
+        } else {
+          html += `<ellipse cx="${x}" cy="${y}" rx="5.5" ry="4" fill="${col}" transform="rotate(-15 ${x} ${y})"/>`;
+        }
+
+        // 符幹
         const stemDir = y > staffTop + staffH / 2 ? -1 : 1;
         const stemX = stemDir === 1 ? x - 5 : x + 5;
-        html += `<line x1="${stemX}" y1="${y}" x2="${stemX}" y2="${y + stemDir * 28}" stroke="${col}" stroke-width="1.5"/>`;
+        const stemEndY = y + stemDir * 28;
+        if (hasStem) {
+          html += `<line x1="${stemX}" y1="${y}" x2="${stemX}" y2="${stemEndY}" stroke="${col}" stroke-width="1.5"/>`;
+        }
+
+        // 旗（8分・16分音符）
+        if (flagCount >= 1 && hasStem) {
+          const d = -stemDir;
+          const bx = stemX;
+          const by = stemEndY;
+          html += `<path d="M ${bx} ${by} c 1 ${d*3}, 8 ${d*6}, 10 ${d*14} c -1 ${d*-2}, -6 ${d*-6}, -10 ${d*-8} Z" fill="${col}"/>`;
+          if (flagCount >= 2) {
+            const by2 = by - d * 6;
+            html += `<path d="M ${bx} ${by2} c 1 ${d*3}, 8 ${d*6}, 10 ${d*14} c -1 ${d*-2}, -6 ${d*-6}, -10 ${d*-8} Z" fill="${col}"/>`;
+          }
+        }
+
+        // 付点
+        if (isDotted) {
+          html += `<circle cx="${x + 9}" cy="${y - 2}" r="1.5" fill="${col}"/>`;
+        }
 
         // 演奏済み音名
         if (noteState !== 'upcoming')
@@ -185,7 +294,8 @@
       if (playerState.isPlaying || playerState.isRecording) {
         const curNote = notes[playerState.currentNoteIdx];
         if (curNote && curNote.beat >= rowStartBeat && curNote.beat < rowEndBeat) {
-          const px = startX + ((curNote.beat - rowStartBeat) / rowBeats) * usableW + NOTE_X_OFFSET;
+          const px = noteXMap.get(playerState.currentNoteIdx)
+            ?? (startX + ((curNote.beat - rowStartBeat) / rowBeats) * usableW + NOTE_X_OFFSET);
           html += `<line x1="${px - 14}" y1="${staffTop - 8}" x2="${px - 14}" y2="${staffTop + staffH + 8}" stroke="#c8f53a" stroke-width="1.5" opacity="0.8"/>`;
         }
       }
