@@ -1,3 +1,20 @@
+const STORAGE_KEY_INPUT = 'audio_input_device_id';
+const STORAGE_KEY_OUTPUT = 'audio_output_device_id';
+
+function loadSavedDeviceId(key: string): string {
+  if (typeof localStorage === 'undefined') return '';
+  return localStorage.getItem(key) ?? '';
+}
+
+function saveDeviceId(key: string, value: string): void {
+  if (typeof localStorage === 'undefined') return;
+  if (value) {
+    localStorage.setItem(key, value);
+  } else {
+    localStorage.removeItem(key);
+  }
+}
+
 export const audioState = $state<{
   audioCtx: AudioContext | null;
   analyserNode: AnalyserNode | null;
@@ -18,12 +35,16 @@ export const audioState = $state<{
   micError: null,
   micGranted: false,
   devices: [],
-  selectedInputId: '',
-  selectedOutputId: ''
+  selectedInputId: loadSavedDeviceId(STORAGE_KEY_INPUT),
+  selectedOutputId: loadSavedDeviceId(STORAGE_KEY_OUTPUT)
 });
 
 export async function requestMic(deviceIdOrEvent?: string | Event) {
   let deviceId = typeof deviceIdOrEvent === 'string' ? deviceIdOrEvent : undefined;
+  // If no explicit deviceId provided, try to use the saved one
+  if (!deviceId && audioState.selectedInputId) {
+    deviceId = audioState.selectedInputId;
+  }
   try {
     if (audioState.micStream) {
       audioState.micStream.getTracks().forEach(track => track.stop());
@@ -39,7 +60,19 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
         ...(deviceId ? { deviceId: { exact: deviceId } } : {})
       }
     };
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (e) {
+      // If the saved device is no longer available, fallback to default
+      if (deviceId) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+        });
+      } else {
+        throw e;
+      }
+    }
     audioState.micStream = stream;
 
     if (!audioState.audioCtx) {
@@ -64,7 +97,10 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
     const track = stream.getAudioTracks()[0];
     if (track) {
       const settings = track.getSettings();
-      if (settings.deviceId) audioState.selectedInputId = settings.deviceId;
+      if (settings.deviceId) {
+        audioState.selectedInputId = settings.deviceId;
+        saveDeviceId(STORAGE_KEY_INPUT, settings.deviceId);
+      }
     }
   } catch (e: any) {
     audioState.micError = 'エラー: ' + e.message;
@@ -80,6 +116,7 @@ export async function updateDevices() {
 
 export async function setOutputDevice(deviceId: string) {
   audioState.selectedOutputId = deviceId;
+  saveDeviceId(STORAGE_KEY_OUTPUT, deviceId);
   const ac = audioState.audioCtx;
   if (!ac) return;
   if (typeof (ac as any).setSinkId === 'function') {
