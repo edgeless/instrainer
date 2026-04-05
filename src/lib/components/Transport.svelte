@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { playerState, getTotalBeats, getTotalDurationSeconds } from '$lib/stores/player.svelte';
+  import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds } from '$lib/stores/player.svelte';
   import { scoreState, resetScore } from '$lib/stores/score.svelte';
   import { audioState, playClick } from '$lib/stores/audio.svelte';
   import { midiToFreq, freqToCents } from '$lib/utils/pitch';
@@ -26,6 +26,7 @@
     if (!playerState.isPlaying && !playerState.isRecording) return;
     const secPerBeat = 60 / playerState.song.bpm;
     const totalBeats = getTotalBeats();
+    const originalBeats = getOriginalBeats();
 
     function tick() {
       if (!playerState.isPlaying && !playerState.isRecording) return;
@@ -35,19 +36,35 @@
         return;
       }
 
+      // 現在のループ番号を計算
+      if (playerState.currentBeat >= 0 && originalBeats > 0) {
+        playerState.currentLoop = Math.floor(playerState.currentBeat / originalBeats) + 1;
+      }
+
       if (audioState.audioCtx) {
         if (playerState.currentBeat < 0) {
           playClick(playerState.currentBeat === -4);
         } else if (playerState.metronomeOn) {
-          playClick(playerState.currentBeat % 4 === 0);
+          // リピート時は元のビート位置に対して小節頭を判定
+          const beatInLoop = originalBeats > 0 ? playerState.currentBeat % originalBeats : playerState.currentBeat;
+          const beatsPerMeasure = (playerState.song.timeSignature ?? [4, 4])[0];
+          playClick(beatInLoop % beatsPerMeasure === 0);
+        }
+      }
+
+      // リピート時のノートインデックス計算（元の曲内のビート位置で判定）
+      const beatInLoop = originalBeats > 0 ? playerState.currentBeat % originalBeats : playerState.currentBeat;
+      let targetNoteIdx = 0;
+      for (let i = 0; i < playerState.song.notes.length; i++) {
+        if (playerState.song.notes[i].beat <= beatInLoop) {
+          targetNoteIdx = i;
+        } else {
+          break;
         }
       }
 
       const prevNoteIdx = playerState.currentNoteIdx;
-      while (
-        playerState.currentNoteIdx < playerState.song.notes.length - 1 &&
-        playerState.song.notes[playerState.currentNoteIdx + 1].beat <= playerState.currentBeat
-      ) {
+      if (targetNoteIdx !== prevNoteIdx) {
         if (playerState.isRecording && scoreState.currentCentsHistory.length > 0) {
           scoreState.recordedSamples.push({
             noteIdx: prevNoteIdx,
@@ -56,7 +73,7 @@
           gradeNote(prevNoteIdx, scoreState.currentCentsHistory);
           scoreState.currentCentsHistory = [];
         }
-        playerState.currentNoteIdx++;
+        playerState.currentNoteIdx = targetNoteIdx;
       }
 
       playerState.currentBeat++;
@@ -129,6 +146,7 @@
     if (beatInterval) clearTimeout(beatInterval);
     playerState.currentNoteIdx = 0;
     playerState.currentBeat = -4;
+    playerState.currentLoop = 1;
     playerState.status = 'idle';
   }
 
@@ -157,6 +175,7 @@
     playerState.isPlaying = true;
     playerState.currentNoteIdx = 0;
     playerState.currentBeat = -4;
+    playerState.currentLoop = 1;
     resetScore();
     playerState.status = 'rec';
     scheduleBeat();
@@ -184,15 +203,22 @@
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const pct = (e.clientX - rect.left) / rect.width;
     const totalBeats = getTotalBeats();
+    const originalBeats = getOriginalBeats();
     const targetBeat = Math.floor(pct * totalBeats);
     playerState.currentBeat = targetBeat;
-    playerState.currentNoteIdx = 0;
-    for (let i = 0; i < playerState.song.notes.length; i++) {
-        if (playerState.song.notes[i].beat <= targetBeat) {
-            playerState.currentNoteIdx = i;
+
+    // リピート時のループ番号とループ内ビート位置を計算
+    if (originalBeats > 0) {
+      playerState.currentLoop = Math.floor(targetBeat / originalBeats) + 1;
+      const beatInLoop = targetBeat % originalBeats;
+      playerState.currentNoteIdx = 0;
+      for (let i = 0; i < playerState.song.notes.length; i++) {
+        if (playerState.song.notes[i].beat <= beatInLoop) {
+          playerState.currentNoteIdx = i;
         } else {
-            break;
+          break;
         }
+      }
     }
   }
 </script>

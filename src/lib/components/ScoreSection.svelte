@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { playerState, getTotalBeats } from '$lib/stores/player.svelte';
+  import { playerState, getOriginalBeats } from '$lib/stores/player.svelte';
   
   let viewMode = $state('both');
 
@@ -84,7 +84,7 @@
     const [timeSigNum, timeSigDen] = playerState.song.timeSignature ?? [4, 4];
     const beatsPerMeasure = timeSigNum;
     const notes = playerState.song.notes;
-    const totalBeats = getTotalBeats();
+    const totalBeats = getOriginalBeats();
     const totalMeasures = Math.ceil(totalBeats / beatsPerMeasure);
     const totalRows = Math.ceil(totalMeasures / MEASURES_PER_ROW);
 
@@ -312,7 +312,7 @@
     const STRINGS = ['G', 'D', 'A', 'E'];
     const [timeSigNum] = playerState.song.timeSignature ?? [4, 4];
     const beatsPerMeasure = timeSigNum;
-    const totalBeats = getTotalBeats();
+    const totalBeats = getOriginalBeats();
     const totalMeasures = Math.ceil(totalBeats / beatsPerMeasure);
 
     const labelW = 18;
@@ -375,7 +375,10 @@
 <section class="score-section">
   <div class="sec-hdr">
     SCORE — Measure {Math.floor((playerState.song.notes[playerState.currentNoteIdx]?.beat || 0) / beatsPerMeasure) + 1}
-    / {Math.ceil(getTotalBeats() / beatsPerMeasure)}
+    / {Math.ceil(getOriginalBeats() / beatsPerMeasure)}
+    {#if playerState.repeatCount > 1}
+      <span class="loop-indicator">{playerState.currentLoop}/{playerState.repeatCount}</span>
+    {/if}
   </div>
   <div class="score-tabs">
     <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -405,6 +408,17 @@
   display: flex; align-items: center; gap: 8px;
 }
 .sec-hdr::before { content:''; width:4px; height:4px; background:var(--accent); border-radius:50%; box-shadow:0 0 6px var(--accent); }
+.loop-indicator {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--accent);
+  background: rgba(200,245,58,0.1);
+  border: 1px solid rgba(200,245,58,0.3);
+  padding: 2px 10px;
+  border-radius: 12px;
+  letter-spacing: 1px;
+}
 
 .score-tabs { display: flex; border-bottom: 1px solid var(--border); }
 .stab {

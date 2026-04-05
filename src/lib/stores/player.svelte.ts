@@ -9,7 +9,9 @@ export const playerState = $state({
   isRecording: false,
   tolerance: 20, // cents
   metronomeOn: false,
-  status: 'idle' // 'idle' | 'play' | 'rec'
+  status: 'idle' as 'idle' | 'play' | 'rec',
+  repeatCount: 1,   // リピート回数（1 = 繰り返しなし）
+  currentLoop: 1,   // 現在のループ番号（1始まり）
 });
 
 export function setSong(key: string) {
@@ -18,14 +20,21 @@ export function setSong(key: string) {
     playerState.song = SONGS[key];
     playerState.currentNoteIdx = 0;
     playerState.currentBeat = -4;
+    playerState.currentLoop = 1;
   }
 }
 
-export function getTotalBeats() {
+/** 1回分（リピートなし）の総ビート数 */
+export function getOriginalBeats() {
   const notes = playerState.song.notes;
   if (!notes || notes.length === 0) return 0;
   const lastNote = notes[notes.length - 1];
   return lastNote.beat + lastNote.dur;
+}
+
+/** リピートを含む全体の総ビート数 */
+export function getTotalBeats() {
+  return getOriginalBeats() * playerState.repeatCount;
 }
 
 export function getTotalDurationSeconds() {
