@@ -7,18 +7,27 @@
   }
 
   let graded = $derived(scoreState.noteResults.filter((r) => r && r.grade));
-  let scored = $derived(graded.filter((r) => r?.grade !== 'miss'));
-  let acc = $derived(graded.length > 0 ? Math.round((scored.length / playerState.song.notes.length) * 100) : 0);
+  let maxScore = $derived(playerState.song.notes.length * 30);
+  let totalScore = $derived(
+    scoreState.noteResults.reduce((sum, r) => {
+      if (!r || r.grade === 'miss' || r.avgCents === null) return sum;
+      return sum + Math.max(0, 30 - Math.abs(r.avgCents));
+    }, 0)
+  );
+  let displayScore = $derived(Math.round(totalScore));
+  let scorePercent = $derived(maxScore > 0 ? (totalScore / maxScore) * 100 : 0);
+  let scoreText = $derived(`${displayScore}(${scorePercent.toFixed(1)}%)`);
+
   let withCents = $derived(graded.filter((r) => r?.avgCents !== null));
   let avgDev = $derived(withCents.length > 0 ? withCents.reduce((s, r) => s + Math.abs(r!.avgCents as number), 0) / withCents.length : 0);
   let missCount = $derived(scoreState.noteResults.filter((r) => r && r.grade === 'miss').length);
 
   let gradeLetter = $derived.by(() => {
-    if (acc >= 95 && avgDev < 10) return 'S';
-    if (acc >= 85 && avgDev < 15) return 'A';
-    if (acc >= 75 && avgDev < 20) return 'B+';
-    if (acc >= 65) return 'B';
-    if (acc >= 50) return 'C';
+    if (scorePercent >= 95 && avgDev < 10) return 'S';
+    if (scorePercent >= 85 && avgDev < 15) return 'A';
+    if (scorePercent >= 75 && avgDev < 20) return 'B+';
+    if (scorePercent >= 65) return 'B';
+    if (scorePercent >= 50) return 'C';
     return 'D';
   });
 
@@ -37,12 +46,12 @@
     <div class="rc-title">ANALYSIS</div>
     <div class="rc-sub">{playerState.song.name} — 録音済み</div>
     <div class="rc-score-big">
-      <div class="rc-num">{acc}</div>
+      <div class="rc-num" style="font-size: 56px;">{scoreText}</div>
       <div class="rc-grade">GRADE: {gradeLetter} — {gradeMsg}</div>
     </div>
     <div class="rc-stats">
       <div class="rc-stat">
-        <div class="rc-sv" style="color:var(--accent2)">{acc}%</div>
+        <div class="rc-sv" style="color:var(--accent2)">{scorePercent.toFixed(1)}%</div>
         <div class="rc-sl">ACCURACY</div>
       </div>
       <div class="rc-stat">
