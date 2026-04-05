@@ -31,6 +31,13 @@
     playerState.song.bpm = Math.max(10, Math.min(300, newBpm));
   }
 
+  function onRepeatWheel(e: WheelEvent) {
+    if (playerState.status !== 'idle') return;
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -1 : 1;
+    playerState.repeatCount = Math.max(1, Math.min(99, playerState.repeatCount + delta));
+  }
+
   let audioInputs = $derived(audioState.devices.filter(d => d.kind === 'audioinput'));
   let audioOutputs = $derived(audioState.devices.filter(d => d.kind === 'audiooutput'));
 </script>
@@ -57,6 +64,9 @@
         <option value={key}>{s.name}</option>
       {/each}
     </select>
+    <div class="bpm-box" role="spinbutton" tabindex="-1" onwheel={onRepeatWheel} title="スクロールで変更">
+      Repeat <span class="bpm-val {playerState.status !== 'idle' ? 'disabled' : ''}">{playerState.repeatCount}</span>
+    </div>
     <div class="bpm-box">
       BPM <input type="number" bind:value={playerState.song.bpm} onwheel={onBpmWheel} min="10" max="300" class="bpm-input" title="スクロールで変更" disabled={playerState.status !== 'idle'} />
     </div>
@@ -89,7 +99,9 @@ select.device-sel { max-width: 140px; text-overflow: ellipsis; white-space: nowr
 .bpm-input { background: rgba(0,0,0,0.2); border: 1px solid transparent; color: var(--accent); font-family: inherit; font-size: 11px; font-weight: bold; width: 40px; padding: 2px 4px; border-radius: 2px; outline: none; -moz-appearance: textfield; transition: opacity 0.2s; }
 .bpm-input:focus { border-color: var(--accent); }
 .bpm-input:disabled { opacity: 0.5; cursor: not-allowed; }
-.bpm-input::-webkit-outer-spin-button, .bpm-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.bpm-input::-webkit-outer-spin-button, .bpm-input::-webkit-inner-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
+.bpm-val { color: var(--accent); font-weight: bold; min-width: 20px; text-align: center; }
+.bpm-val.disabled { opacity: 0.5; }
 .btn-sm {
   background: transparent; border: 1px solid var(--border); color: var(--muted);
   padding: 6px 12px; border-radius: 4px; font-size: 11px; cursor: pointer; font-family: 'Space Mono', monospace;

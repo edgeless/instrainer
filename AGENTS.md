@@ -13,14 +13,14 @@ AIコーディングエージェント向けの文書です。このドキュメ
 
 ## 3. アーキテクチャ
 - **コンポーネント (`src/lib/components`)**: UI要素は機能ごとに構造化されています。
-  - `Header.svelte`: BPMやオーディオデバイスの選択を担当。
+  - `Header.svelte`: BPMやリピート回数、オーディオデバイスの選択を担当。Repeatコントロールはスクロール（マウスホイール）で増減可能。
   - `PitchMonitor.svelte`: ピッチと波形をリアルタイムで可視化。
-  - `ScoreSection.svelte`: 五線譜・タブ譜の描画。4小節/行の多段表示に対応し、「両方」モードでは五線譜行とタブ譜行を交互に配置する。`buildStaffRows()` / `buildTabRows()` が行ごとのHTML文字列配列を返し、`renderScore()` が viewMode に応じて合成する。
-  - `ScorePanel.svelte`: セッションスコア（正確度・偏差）とノート履歴ドットの表示。
+  - `ScoreSection.svelte`: 五線譜・タブ譜の描画。4小節/行の多段表示に対応し、「両方」モードでは五線譜行とタブ譜行を交互に配置する。`buildStaffRows()` / `buildTabRows()` が行ごとのHTML文字列配列を返し、`renderScore()` が viewMode に応じて合成する。リピート中（`repeatCount > 1`）は右上にループインジケーター（n/m）を表示する。
+  - `ScorePanel.svelte`: セッションスコア（正確度・偏差）とノート履歴ドットの表示。リピート時は最後に演奏した周回の結果を表示する。
   - `Transport.svelte`: 再生コントロール。
 - **ストア・状態 (`src/lib/stores`)**: `$state`を利用したクラスやクロージャを含む `.svelte.ts` ファイルを使用します。
   - `audio.svelte.ts`: Web Audio APIロジック、デバイス選択、マイクのアクセス許可。`localStorage` を使用して選択した入力・出力デバイスを永続化する。
-  - `player.svelte.ts`: メトロノームと再生状態。
+  - `player.svelte.ts`: メトロノーム、再生状態、およびリピート設定。`repeatCount` (総周回数) と `currentLoop` (現在何周目か) を保持する。
   - `score.svelte.ts`: スコア計算やセッション指標を保存するロジック。
 - **ユーティリティ (`src/lib/utils`)**: 副作用のない（純粋な）TypeScript関数群。例：セント値、周波数、ノートの計算を行う `pitch.ts`。
 
