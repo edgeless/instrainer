@@ -1,6 +1,7 @@
 {
   "name": "ウォーキングベース in C",
   "bpm": 100,
+  "timeSignature": [4, 4],
   "notes": [
     {"name":"C3", "midi":36, "string":"A", "fret":3, "beat":0, "dur":1},
     {"name":"E3", "midi":40, "string":"A", "fret":7, "beat":1, "dur":1},

@@ -1,6 +1,7 @@
 {
   "name": "Aペンタトニック",
   "bpm": 84,
+  "timeSignature": [4, 4],
   "notes": [
     {"name":"A2", "midi":33, "string":"E", "fret":5, "beat":0, "dur":1},
     {"name":"C3", "midi":36, "string":"A", "fret":3, "beat":1, "dur":1},
