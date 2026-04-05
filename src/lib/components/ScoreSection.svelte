@@ -3,6 +3,9 @@
   
   let viewMode = $state('both');
 
+  // 拍子記号の分子（小節内の拍数）を $derived で管理
+  let beatsPerMeasure = $derived((playerState.song.timeSignature ?? [4, 4])[0]);
+
   // 全音階（ダイアトニック）に基づいた五線譜（ヘ音記号）上の位置。
   // 第5線（一番上の線）のA3を基準(0)とし、半音階の臨時記号はY座標に影響しない。
   // ※将来的なリズムトレーニング機能拡張（休符や連符など）の際は、この座標計算の外で処理すること。
@@ -50,10 +53,13 @@
     const lineSpacing = 9;
     const staffTop = 28;
     const staffH = lineSpacing * 4;
-    const svgH = staffTop + staffH + 70; // 最低音(E1など)の加線や音名テキストが重ならないよう十分な高さを確保
+    const svgH = staffTop + staffH + 70; // 最低音の加線や音名テキストが重ならないよう十分な高さを確保
 
     svg.setAttribute('viewBox', `0 0 ${W} ${svgH}`);
     svg.setAttribute('height', svgH.toString());
+
+    const [timeSigNum, timeSigDen] = playerState.song.timeSignature ?? [4, 4];
+    const beatsPerMeasure = timeSigNum;
 
     let html = '';
     for(let i=0;i<5;i++){
@@ -61,15 +67,33 @@
       html += `<line x1="10" y1="${y}" x2="${W-10}" y2="${y}" stroke="rgba(255,255,255,0.22)" stroke-width="1"/>`;
     }
 
+    // ヘ音記号と拍子記号
     html += `<text x="12" y="${staffTop + lineSpacing*2 + 8}" font-size="38" fill="rgba(255,255,255,0.65)" font-family="serif" style="line-height:1">𝄢</text>`;
-    html += `<text x="46" y="${staffTop + lineSpacing*1.5}" font-size="14" fill="rgba(255,255,255,0.6)" font-family="serif" font-weight="bold">4</text>`;
-    html += `<text x="46" y="${staffTop + lineSpacing*3.5}" font-size="14" fill="rgba(255,255,255,0.6)" font-family="serif" font-weight="bold">4</text>`;
+    html += `<text x="46" y="${staffTop + lineSpacing*1.5}" font-size="14" fill="rgba(255,255,255,0.6)" font-family="serif" font-weight="bold">${timeSigNum}</text>`;
+    html += `<text x="46" y="${staffTop + lineSpacing*3.5}" font-size="14" fill="rgba(255,255,255,0.6)" font-family="serif" font-weight="bold">${timeSigDen}</text>`;
 
     const notes = playerState.song.notes;
     const totalBeats = getTotalBeats();
     const startX = 72;
     const endX = W - 20;
     const usableW = endX - startX;
+
+    // 小節区切り線
+    // 音符のX座標: startX + (beat/totalBeats)*usableW + 6
+    // 隣接音符間隔の半分だけ左にずらすことで、前の小節最後の音符と次の小節最初の音符の中間に引く
+    const NOTE_X_OFFSET = 6;
+    const beatSpacing = usableW / totalBeats; // 1ビートあたりのピクセル幅
+    const totalMeasures = Math.ceil(totalBeats / beatsPerMeasure);
+    for (let m = 1; m < totalMeasures; m++) {
+      const barBeat = m * beatsPerMeasure;
+      // barBeat ビートの音符中心から、1ビート分の半分だけ左 = 前後音符の中間点
+      const bx = startX + (barBeat / totalBeats) * usableW + NOTE_X_OFFSET - beatSpacing / 2;
+      html += `<line x1="${bx}" y1="${staffTop}" x2="${bx}" y2="${staffTop + staffH}" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>`;
+      // 小節番号（バーラインの右側に表示）
+      html += `<text x="${bx + 3}" y="${staffTop - 4}" font-size="7" fill="rgba(255,255,255,0.25)" font-family="'Space Mono',monospace">${m + 1}</text>`;
+    }
+    // 先頭小節番号
+    html += `<text x="${startX + NOTE_X_OFFSET}" y="${staffTop - 4}" font-size="7" fill="rgba(255,255,255,0.25)" font-family="'Space Mono',monospace">1</text>`;
 
     const NOTE_COLORS: Record<string, string> = { played:'rgba(58,245,160,0.65)', current:'#c8f53a', upcoming:'rgba(255,255,255,0.25)' };
 
@@ -96,7 +120,6 @@
       html += `<ellipse cx="${x}" cy="${y}" rx="5.5" ry="4" fill="${col}" transform="rotate(-15 ${x} ${y})"/>`;
       const stemDir = y > staffTop + staffH/2 ? -1 : 1;
       const stemLen = 28;
-      // 符尾（棒）の位置: 符尾が下向き(stemDir=1)なら左側(x-5)、上向き(stemDir=-1)なら右側(x+5)
       const stemX = stemDir === 1 ? x - 5 : x + 5;
       html += `<line x1="${stemX}" y1="${y}" x2="${stemX}" y2="${y + stemDir * stemLen}" stroke="${col}" stroke-width="1.5"/>`;
 
@@ -123,6 +146,8 @@
     const area = tabArea;
     const notes = playerState.song.notes;
     const STRINGS = ['G','D','A','E'];
+    const [timeSigNum] = playerState.song.timeSignature ?? [4, 4];
+    const beatsPerMeasure = timeSigNum;
     const containerW = area.clientWidth || 500;
     const labelW = 18;
     const usableW = containerW - labelW - 8;
@@ -135,16 +160,21 @@
         let state = i < playerState.currentNoteIdx ? 'tc-played' : i === playerState.currentNoteIdx ? 'tc-current' : '';
         const isThisString = note.string === str;
         const content = isThisString ? note.fret.toString() : '─';
-        html += `<div class="tab-cell ${state}" style="width:${cellW}px">${content}</div>`;
+        // 小節の先頭かどうか（beat が beatsPerMeasure の倍数かつ最初のノードでない）
+        const isMeasureStart = note.beat > 0 && note.beat % beatsPerMeasure === 0;
+        const borderStyle = isMeasureStart ? 'border-left: 1.5px solid rgba(255,255,255,0.35);' : '';
+        html += `<div class="tab-cell ${state}" style="width:${cellW}px;${borderStyle}">${content}</div>`;
       });
       html += `</div></div>`;
     });
 
     html += `<div style="display:flex;padding-left:${labelW}px;margin-top:3px;">`;
     notes.forEach((note, i) => {
-      const beat = (note.beat % 4) + 1;
+      const beat = (note.beat % beatsPerMeasure) + 1;
       const col = i === playerState.currentNoteIdx ? 'var(--accent)' : 'var(--muted)';
-      html += `<div style="width:${cellW}px;text-align:center;font-size:8px;color:${col};font-family:'Space Mono',monospace">${beat}</div>`;
+      const isMeasureStart = note.beat > 0 && note.beat % beatsPerMeasure === 0;
+      const borderStyle = isMeasureStart ? 'border-left: 1.5px solid rgba(255,255,255,0.2);' : '';
+      html += `<div style="width:${cellW}px;text-align:center;font-size:8px;color:${col};font-family:'Space Mono',monospace;${borderStyle}">${beat}</div>`;
     });
     html += `</div>`;
     area.innerHTML = html;
@@ -159,8 +189,8 @@
 
 <section class="score-section">
   <div class="sec-hdr">
-    SCORE — Measure {Math.floor((playerState.song.notes[playerState.currentNoteIdx]?.beat || 0) / 4) + 1}
-    / {Math.ceil(getTotalBeats() / 4)}
+    SCORE — Measure {Math.floor((playerState.song.notes[playerState.currentNoteIdx]?.beat || 0) / beatsPerMeasure) + 1}
+    / {Math.ceil(getTotalBeats() / beatsPerMeasure)}
   </div>
   <div class="score-tabs">
     <!-- svelte-ignore a11y_click_events_have_key_events -->

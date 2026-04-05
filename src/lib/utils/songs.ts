@@ -12,6 +12,8 @@ export type Note = {
 export type Song = {
   name: string;
   bpm: number;
+  /** 拍子記号 [分子, 分母]。例: [4, 4] = 4/4拍子、[3, 4] = 3/4拍子。省略時は [4, 4] とみなす。 */
+  timeSignature?: [number, number];
   notes: Note[];
 };
 
