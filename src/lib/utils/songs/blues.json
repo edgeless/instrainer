@@ -1,0 +1,19 @@
+{
+  "name": "Eブルーススケール",
+  "bpm": 76,
+  "notes": [
+    {"name":"E2", "midi":28, "string":"E", "fret":0, "beat":0, "dur":1},
+    {"name":"G2", "midi":31, "string":"E", "fret":3, "beat":1, "dur":1},
+    {"name":"A2", "midi":33, "string":"E", "fret":5, "beat":2, "dur":1},
+    {"name":"Bb2","midi":34, "string":"E", "fret":6, "beat":3, "dur":1},
+    {"name":"B2", "midi":35, "string":"E", "fret":7, "beat":4, "dur":1},
+    {"name":"D3", "midi":38, "string":"A", "fret":5, "beat":5, "dur":1},
+    {"name":"E3", "midi":40, "string":"A", "fret":7, "beat":6, "dur":2},
+    {"name":"D3", "midi":38, "string":"A", "fret":5, "beat":8, "dur":1},
+    {"name":"B2", "midi":35, "string":"E", "fret":7, "beat":9, "dur":1},
+    {"name":"Bb2","midi":34, "string":"E", "fret":6, "beat":10, "dur":1},
+    {"name":"A2", "midi":33, "string":"E", "fret":5, "beat":11, "dur":1},
+    {"name":"G2", "midi":31, "string":"E", "fret":3, "beat":12, "dur":1},
+    {"name":"E2", "midi":28, "string":"E", "fret":0, "beat":13, "dur":3}
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "name": "ウォーキングベース in C",
+  "bpm": 100,
+  "notes": [
+    {"name":"C3", "midi":36, "string":"A", "fret":3, "beat":0, "dur":1},
+    {"name":"E3", "midi":40, "string":"A", "fret":7, "beat":1, "dur":1},
+    {"name":"G3", "midi":43, "string":"E", "fret":10, "beat":2, "dur":1},
+    {"name":"B2", "midi":35, "string":"E", "fret":7, "beat":3, "dur":1},
+    {"name":"C3", "midi":36, "string":"A", "fret":3, "beat":4, "dur":1},
+    {"name":"A2", "midi":33, "string":"E", "fret":5, "beat":5, "dur":1},
+    {"name":"F2", "midi":29, "string":"E", "fret":1, "beat":6, "dur":1},
+    {"name":"G2", "midi":31, "string":"E", "fret":3, "beat":7, "dur":1},
+    {"name":"C3", "midi":36, "string":"A", "fret":3, "beat":8, "dur":1},
+    {"name":"D3", "midi":38, "string":"A", "fret":5, "beat":9, "dur":1},
+    {"name":"E3", "midi":40, "string":"A", "fret":7, "beat":10, "dur":1},
+    {"name":"F3", "midi":41, "string":"A", "fret":8, "beat":11, "dur":1},
+    {"name":"G3", "midi":43, "string":"E", "fret":10, "beat":12, "dur":1},
+    {"name":"E3", "midi":40, "string":"A", "fret":7, "beat":13, "dur":1},
+    {"name":"D3", "midi":38, "string":"A", "fret":5, "beat":14, "dur":1},
+    {"name":"C3", "midi":36, "string":"A", "fret":3, "beat":15, "dur":1}
+  ]
+}
