@@ -15,6 +15,17 @@ export function detectPitch(analyserNode: AnalyserNode, pitchBuf: Float32Array, 
   analyserNode.getFloatTimeDomainData(pitchBuf);
   const buf = pitchBuf;
   const n = buf.length;
+
+  // RMS Volume Noise Gate
+  let rms = 0;
+  for (let i = 0; i < n; i++) {
+    rms += buf[i] * buf[i];
+  }
+  rms = Math.sqrt(rms / n);
+  if (rms < 0.015) {
+    return -1;
+  }
+
   const threshold = 0.12;
   const minFreq = 30, maxFreq = 400;
   const minLag = Math.floor(sampleRate / maxFreq);
@@ -44,13 +55,19 @@ export function detectPitch(analyserNode: AnalyserNode, pitchBuf: Float32Array, 
   let tau = minLag;
   while (tau < maxLag) {
     if (cmnd[tau] < threshold) {
-      // Parabolic interpolation
-      if (tau + 1 < maxLag && cmnd[tau - 1] > cmnd[tau]) {
-        const a = cmnd[tau - 1], b = cmnd[tau], c = cmnd[tau + 1];
-        const denom = a - 2 * b + c;
-        if (denom !== 0) tau += 0.5 * (a - c) / denom;
+      // Search for the local minimum within this dip
+      while (tau + 1 < maxLag && cmnd[tau + 1] < cmnd[tau]) {
+        tau++;
       }
-      return sampleRate / tau;
+      
+      // Parabolic interpolation
+      let exactTau = tau;
+      if (tau > 0 && tau + 1 <= maxLag) {
+        const a = cmnd[tau - 1], b = cmnd[tau], c = cmnd[tau + 1] || b;
+        const denom = a - 2 * b + c;
+        if (denom !== 0) exactTau += 0.5 * (a - c) / denom;
+      }
+      return sampleRate / exactTau;
     }
     tau++;
   }
@@ -96,12 +113,18 @@ export function detectPitchHQ(samples: number[], sr: number): number {
   let tau = minLag;
   while (tau < maxLag) {
     if (cmnd[tau] < threshold) {
-      if (tau + 1 < maxLag) {
-        const a = cmnd[tau - 1] || cmnd[tau], b = cmnd[tau], c = cmnd[tau + 1];
-        const denom = a - 2 * b + c;
-        if (denom !== 0) tau += 0.5 * (a - c) / denom;
+      // Search for local minimum
+      while (tau + 1 < maxLag && cmnd[tau + 1] < cmnd[tau]) {
+        tau++;
       }
-      return sr / tau;
+      
+      let exactTau = tau;
+      if (tau > 0 && tau + 1 <= maxLag) {
+        const a = cmnd[tau - 1], b = cmnd[tau], c = cmnd[tau + 1] || b;
+        const denom = a - 2 * b + c;
+        if (denom !== 0) exactTau += 0.5 * (a - c) / denom;
+      }
+      return sr / exactTau;
     }
     tau++;
   }
@@ -114,4 +137,15 @@ export function detectPitchHQ(samples: number[], sr: number): number {
   }
   if (bestVal < 0.25) return sr / best;
   return -1;
+}
+
+export function freqToMidi(freq: number): number {
+  if (freq <= 0) return 0;
+  return Math.round(69 + 12 * Math.log2(freq / 440));
+}
+
+export function midiToNoteName(midi: number): string {
+  if (midi < 0) return '—';
+  const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  return notes[midi % 12] + (Math.floor(midi / 12) - 1);
 }

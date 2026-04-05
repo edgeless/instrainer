@@ -3,7 +3,7 @@
   import { playerState } from '$lib/stores/player.svelte';
   import { audioState } from '$lib/stores/audio.svelte';
   import { scoreState } from '$lib/stores/score.svelte';
-  import { midiToFreq, freqToCents, detectPitch } from '$lib/utils/pitch';
+  import { midiToFreq, freqToCents, detectPitch, freqToMidi, midiToNoteName } from '$lib/utils/pitch';
 
   let waveCanvas: HTMLCanvasElement | undefined = $state();
   let centNeedle: HTMLDivElement | undefined = $state();
@@ -12,7 +12,20 @@
   let cents: number | null = $state(null);
   let phase = 0;
   
+  let isIdle = $derived(!playerState.isPlaying && !playerState.isRecording);
   let absCents = $derived(cents !== null ? Math.abs(cents) : null);
+  
+  let displayNoteName = $derived(
+    isIdle 
+      ? (detectedFreq > 0 ? midiToNoteName(freqToMidi(detectedFreq)) : '—')
+      : (playerState.song.notes[playerState.currentNoteIdx]?.name || '—')
+  );
+  
+  let displayNoteFreq = $derived(
+    isIdle
+      ? (detectedFreq > 0 ? detectedFreq.toFixed(2) + ' Hz' : '— Hz')
+      : (playerState.song.notes[playerState.currentNoteIdx] ? midiToFreq(playerState.song.notes[playerState.currentNoteIdx].midi).toFixed(2) + ' Hz' : '— Hz')
+  );
   
   let animFrameId: number;
   let prevTimestamp = 0;
@@ -21,21 +34,27 @@
     animFrameId = requestAnimationFrame(renderLoop);
     
     // Pitch Detection
-    if (playerState.isPlaying || playerState.isRecording) {
-      if (audioState.analyserNode && audioState.pitchBuf && audioState.audioCtx) {
-        const freq = detectPitch(audioState.analyserNode, audioState.pitchBuf, audioState.audioCtx.sampleRate);
-        detectedFreq = freq;
-        if (playerState.isRecording && freq > 0) {
-          scoreState.currentCentsHistory.push(freq);
-        }
+    if (audioState.analyserNode && audioState.pitchBuf && audioState.audioCtx) {
+      const freq = detectPitch(audioState.analyserNode, audioState.pitchBuf, audioState.audioCtx.sampleRate);
+      detectedFreq = freq;
+      if (playerState.isRecording && freq > 0) {
+        scoreState.currentCentsHistory.push(freq);
       }
     } else {
       detectedFreq = -1;
     }
 
     // Update derived cents and needle
-    const note = playerState.song.notes[playerState.currentNoteIdx];
-    const targetFreq = note ? midiToFreq(note.midi) : 0;
+    let targetFreq = 0;
+    if (!playerState.isPlaying && !playerState.isRecording) {
+      if (detectedFreq > 0) {
+        targetFreq = midiToFreq(freqToMidi(detectedFreq));
+      }
+    } else {
+      const note = playerState.song.notes[playerState.currentNoteIdx];
+      targetFreq = note ? midiToFreq(note.midi) : 0;
+    }
+    
     cents = detectedFreq > 0 && targetFreq > 0 ? freqToCents(detectedFreq, targetFreq) : null;
 
     if (centNeedle) {
@@ -113,12 +132,12 @@
   <div class="sec-hdr" style="margin:-12px -12px 0; padding:8px 12px;">PITCH MONITOR</div>
 
   <div class="target-box">
-    <div class="target-lbl">TARGET NOTE</div>
-    <div class="target-note">
-      {playerState.song.notes[playerState.currentNoteIdx]?.name || '—'}
+    <div class="target-lbl">{isIdle ? 'MIC PITCH (TUNER)' : 'TARGET NOTE'}</div>
+    <div class="target-note" style="color: {isIdle ? 'var(--text)' : 'var(--accent)'}; text-shadow: {isIdle ? 'none' : '0 0 30px rgba(200,245,58,0.5)'};">
+      {displayNoteName}
     </div>
     <div class="target-freq">
-      {playerState.song.notes[playerState.currentNoteIdx] ? midiToFreq(playerState.song.notes[playerState.currentNoteIdx].midi).toFixed(2) + ' Hz' : '— Hz'}
+      {displayNoteFreq}
     </div>
   </div>
 
