@@ -7,13 +7,13 @@ AIコーディングエージェント向けの文書です。このドキュメ
 このアプリはリアルタイムのフレットレスベース練習用アプリケーションです。特にWeb Audio APIの統合やピッチ検出ループまわりのパフォーマンスが非常に重要です。音声処理中にメインスレッドをブロックする処理を避けてください。
 
 ## 2. 技術スタックと状態管理
-- **フレームワーク**: Svelte 5を使用するSvelteKit。
+- **フレームワーク**: Svelte 5を使用するSvelteKit。本番環境（デプロイ）用には `@sveltejs/adapter-node` を使用します。
 - **状態管理**: **Svelte 5 Runes** (`$state`, `$derived`, `$effect`, `$props`) のみを排他的に使用します。Svelte 4互換のストアのサブスクリプション(`$store`)や、古い `export let` 構文のPropsは絶対に使わないでください。
 - **スタイリング**: 標準的なCSS。Svelteコンポーネント内のスコープされた `<style>` ブロックを優先して使用します。ユーザーから明示的な要求がない限り、Tailwindは使用しないでください。
 
 ## 3. アーキテクチャ
 - **コンポーネント (`src/lib/components`)**: UI要素は機能ごとに構造化されています。
-  - `Header.svelte`: BPMやリピート回数、オーディオデバイスの選択を担当。Repeatコントロールはスクロール（マウスホイール）で増減可能。
+  - `Header.svelte`: BPMやリピート回数、オーディオデバイスの選択を担当。RepeatとBPMはスクロール（マウスホイール）で増減可能。
   - `PitchMonitor.svelte`: ピッチと波形をリアルタイムで可視化。
   - `ScoreSection.svelte`: 五線譜・タブ譜の描画。4小節/行の多段表示に対応し、「両方」モードでは五線譜行とタブ譜行を交互に配置する。`buildStaffRows()` / `buildTabRows()` が行ごとのHTML文字列配列を返し、`renderScore()` が viewMode に応じて合成する。リピート中（`repeatCount > 1`）は右上にループインジケーター（n/m）を表示する。
   - `ScorePanel.svelte`: セッションスコア（正確度・偏差）とノート履歴ドットの表示。リピート時は最後に演奏した周回の結果を表示する。
@@ -93,3 +93,31 @@ AIコーディングエージェント向けの文書です。このドキュメ
 | 2 | 2分音符 | 白抜き | あり | なし | なし |
 | 3 | 付点2分音符 | 白抜き | あり | なし | あり |
 | 4 | 全音符 | 白抜き | なし | なし | なし |
+
+## 8. デプロイと本番環境
+- **環境**: GCP Cloud Run 上のコンテナとして動作します。
+- **Adapter**: `@sveltejs/adapter-node` を使用。ビルド結果は `./build` ディレクトリに出力されます。
+- **コンテナ設定**:
+  - `Dockerfile`: マルチステージビルド（`node:22-slim`）を使用します。
+  - **ポート**: Cloud Run の仕様に合わせ、環境変数 `PORT` (デフォルト 8080) でリッスンします。
+- **デプロイコマンド（フルオプション）**:
+  無料枠を維持するためのリソース制限を含めた推奨コマンド：
+  ```bash
+  gcloud run deploy fretless-training \
+    --source . \
+    --region asia-northeast1 \
+    --project warabimochi-kinako \
+    --cpu 1 \
+    --memory 512Mi \
+    --max-instances 1 \
+    --allow-unauthenticated \
+    --quiet
+  ```
+- **設定の確認方法**:
+  現在のサービス設定（メモリ、CPU、インスタンス数など）を確認するコマンド：
+  ```bash
+  gcloud run services describe fretless-training \
+    --region asia-northeast1 \
+    --project warabimochi-kinako
+  ```
+- **制限の考え方**: 無料枠（Free Tier）を維持するため、最大インスタンス数は `1`、メモリは `512Mi` に制限して運用します。CPU割り当てはデフォルト（リクエスト処理時のみ）を推奨します。
