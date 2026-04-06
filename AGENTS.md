@@ -121,3 +121,8 @@ AIコーディングエージェント向けの文書です。このドキュメ
     --project warabimochi-kinako
   ```
 - **制限の考え方**: 無料枠（Free Tier）を維持するため、最大インスタンス数は `1`、メモリは `512Mi` に制限して運用します。CPU割り当てはデフォルト（リクエスト処理時のみ）を推奨します。
+
+## 9. セキュリティ
+- **サプライチェーン攻撃対策**: GMO Flatt Security が提供する **Takumi Guard** を導入しています。
+- **仕組み**: `.npmrc` で `registry=https://npm.flatt.tech/` を指定することで、npmパッケージのインストール前に悪意あるコードの混入をリアルタイムでブロックします。
+- **運用の注意**: Takumi Guard は読み取り専用プロキシです。`npm publish` や `npm login` などの書き込み操作を行う場合は、個別に `--registry=https://registry.npmjs.org/` を指定する必要があります。
