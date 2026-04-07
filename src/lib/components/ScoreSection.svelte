@@ -120,9 +120,9 @@
     elements.sort((a, b) => a.beat - b.beat || (a.type === 'bar' ? -1 : 1));
 
     // 最小間隔の定義
-    const MIN_NOTE_NOTE = 22;
-    const MIN_NOTE_BAR  = 16;
-    const MIN_BAR_NOTE  = 16;
+    const MIN_NOTE_NOTE = 28;
+    const MIN_NOTE_BAR  = 32;
+    const MIN_BAR_NOTE  = 32;
 
     function getMinGap(prev: RowElement, cur: RowElement): number {
       if (prev.type === 'note' && cur.type === 'note') return MIN_NOTE_NOTE;
@@ -131,9 +131,9 @@
       return 12;
     }
 
-    const NOTE_X_OFFSET = 6;
+    const NOTE_X_OFFSET = 32;
     const layoutStart = startX + NOTE_X_OFFSET;
-    const layoutEnd = endX - 8;
+    const layoutEnd = endX - 32;
     const elPositions: number[] = [];
 
     elements.forEach((el, j) => {
