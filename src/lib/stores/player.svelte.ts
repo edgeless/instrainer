@@ -1,27 +1,71 @@
 import { SONGS, type Song } from '$lib/utils/songs';
+import { browser } from '$app/environment';
 
-export const playerState = $state({
-  currentSongKey: 'c_major',
-  song: SONGS['c_major'] as Song,
+interface PlayerState {
+  currentSongKey: string;
+  song: Song;
+  currentNoteIdx: number;
+  currentBeat: number;
+  isPlaying: boolean;
+  isRecording: boolean;
+  tolerance: number;
+  metronomeOn: boolean;
+  status: 'idle' | 'play' | 'rec';
+  repeatCount: number;
+  currentLoop: number;
+  importedSong: Song | null;
+}
+
+// 初期化時に localStorage からインポート曲を読み込む
+let initialImported: Song | null = null;
+if (browser) {
+  const saved = localStorage.getItem('imported_song');
+  if (saved) {
+    try {
+      initialImported = JSON.parse(saved);
+    } catch (e) {
+      console.error("Failed to load imported song", e);
+    }
+  }
+}
+
+export const playerState = $state<PlayerState>({
+  currentSongKey: initialImported ? 'imported' : 'c_major',
+  song: (initialImported || SONGS['c_major']) as Song,
   currentNoteIdx: 0,
   currentBeat: -4,
   isPlaying: false,
   isRecording: false,
   tolerance: 20, // cents
   metronomeOn: false,
-  status: 'idle' as 'idle' | 'play' | 'rec',
-  repeatCount: 1,   // リピート回数（1 = 繰り返しなし）
-  currentLoop: 1,   // 現在のループ番号（1始まり）
+  status: 'idle',
+  repeatCount: 1,
+  currentLoop: 1,
+  importedSong: initialImported,
 });
 
-export function setSong(key: string) {
-  if (SONGS[key]) {
-    playerState.currentSongKey = key;
-    playerState.song = SONGS[key];
-    playerState.currentNoteIdx = 0;
-    playerState.currentBeat = -4;
-    playerState.currentLoop = 1;
+export function setSong(arg: string | Song) {
+  if (typeof arg === 'string') {
+    if (SONGS[arg]) {
+      playerState.currentSongKey = arg;
+      playerState.song = SONGS[arg];
+    } else if (arg === 'imported' && playerState.importedSong) {
+      playerState.currentSongKey = 'imported';
+      playerState.song = playerState.importedSong;
+    }
+  } else {
+    // Song オブジェクトが直接渡された場合
+    playerState.currentSongKey = 'imported';
+    playerState.song = arg;
+    playerState.importedSong = arg;
+    if (browser) {
+      localStorage.setItem('imported_song', JSON.stringify(arg));
+    }
   }
+  
+  playerState.currentNoteIdx = 0;
+  playerState.currentBeat = -4;
+  playerState.currentLoop = 1;
 }
 
 /** 1回分（リピートなし）の総ビート数 */

@@ -1,6 +1,7 @@
 {
   "name": "C Major Scale x2",
   "bpm": 80,
+  "key": "C",
   "timeSignature": [4, 4],
   "notes": [
     {

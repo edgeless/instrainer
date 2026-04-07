@@ -2,6 +2,7 @@
   import { playerState, setSong } from '$lib/stores/player.svelte';
   import { audioState, requestMic, setOutputDevice } from '$lib/stores/audio.svelte';
   import { SONGS } from '$lib/utils/songs';
+  import { parseIRealURI } from '$lib/utils/ireal';
 
   function onSongChange(e: Event) {
     const select = e.target as HTMLSelectElement;
@@ -38,6 +39,33 @@
     playerState.repeatCount = Math.max(1, Math.min(99, playerState.repeatCount + delta));
   }
 
+  function onImportIReal() {
+    const uri = window.prompt(i18n.importPrompt);
+    if (uri) {
+      const song = parseIRealURI(uri);
+      if (song) {
+        setSong(song);
+      } else {
+        alert(i18n.importError);
+      }
+    }
+  }
+
+  let i18n = $derived.by(() => {
+    const isJa = typeof navigator !== 'undefined' && navigator.language?.startsWith('ja');
+    return {
+      importTitle: isJa ? "iReal Pro からインポート" : "Import from iReal Pro",
+      importPrompt: isJa ? "iReal Pro の 'irealb://' URLを貼り付けてください:" : "Please paste the iReal Pro 'irealb://' URL:",
+      importError: isJa ? "URLの解析に失敗しました。正しいURLか確認してください。" : "Failed to parse the URL. Please make sure it's a valid iReal Pro URL.",
+      scrollHint: isJa ? "スクロールで変更" : "Scroll to change",
+      clickBtn: isJa ? "♩ メトロノーム" : "♩ CLICK",
+      inputDev: isJa ? "入力デバイス" : "Input Device",
+      outputDev: isJa ? "出力デバイス" : "Output Device",
+      repeat: isJa ? "リピート" : "Repeat",
+      bpm: isJa ? "テンポ" : "BPM",
+    };
+  });
+
   let audioInputs = $derived(audioState.devices.filter(d => d.kind === 'audioinput'));
   let audioOutputs = $derived(audioState.devices.filter(d => d.kind === 'audiooutput'));
 </script>
@@ -46,35 +74,43 @@
   <div class="logo">FRETLESS<span>BASS PRACTICE STUDIO</span></div>
   <div class="header-right">
     {#if audioInputs.length > 0}
-      <select class="device-sel" value={audioState.selectedInputId} onchange={onInputDeviceChange} title="🎤 Input">
+      <select class="device-sel" value={audioState.selectedInputId} onchange={onInputDeviceChange} title="🎤 {i18n.inputDev}">
         {#each audioInputs as device, i}
-          <option value={device.deviceId}>{device.label || `入力デバイス ${i+1}`}</option>
+          <option value={device.deviceId}>{device.label || `${i18n.inputDev} ${i+1}`}</option>
         {/each}
       </select>
     {/if}
     {#if audioOutputs.length > 0}
-      <select class="device-sel" value={audioState.selectedOutputId} onchange={onOutputDeviceChange} title="🔊 Output">
+      <select class="device-sel" value={audioState.selectedOutputId} onchange={onOutputDeviceChange} title="🔊 {i18n.outputDev}">
         {#each audioOutputs as device, i}
-          <option value={device.deviceId}>{device.label || `出力デバイス ${i+1}`}</option>
+          <option value={device.deviceId}>{device.label || `${i18n.outputDev} ${i+1}`}</option>
         {/each}
       </select>
     {/if}
-    <select class="song-sel" value={playerState.currentSongKey} onchange={onSongChange}>
-      {#each Object.entries(SONGS) as [key, s]}
-        <option value={key}>{s.name}</option>
-      {/each}
-    </select>
-    <div class="bpm-box" role="spinbutton" tabindex="-1" onwheel={onRepeatWheel} title="スクロールで変更">
-      Repeat <span class="bpm-val {playerState.status !== 'idle' ? 'disabled' : ''}">{playerState.repeatCount}</span>
+    <div class="song-box">
+      <select class="song-sel" value={playerState.currentSongKey} onchange={onSongChange}>
+        {#each Object.entries(SONGS) as [key, s]}
+          <option value={key}>{s.name}</option>
+        {/each}
+        {#if playerState.importedSong}
+          <option value="imported">✨ {playerState.importedSong.name}</option>
+        {/if}
+      </select>
+      <button class="btn-import" onclick={onImportIReal} title={i18n.importTitle}>
+        IRB
+      </button>
+    </div>
+    <div class="bpm-box" role="spinbutton" tabindex="-1" onwheel={onRepeatWheel} title={i18n.scrollHint}>
+      {i18n.repeat} <span class="bpm-val {playerState.status !== 'idle' ? 'disabled' : ''}">{playerState.repeatCount}</span>
     </div>
     <div class="bpm-box">
-      BPM <input type="number" bind:value={playerState.song.bpm} onwheel={onBpmWheel} min="10" max="300" class="bpm-input" title="スクロールで変更" disabled={playerState.status !== 'idle'} />
+      {i18n.bpm} <input type="number" bind:value={playerState.song.bpm} onwheel={onBpmWheel} min="10" max="300" class="bpm-input" title={i18n.scrollHint} disabled={playerState.status !== 'idle'} />
     </div>
     <button 
       class="btn-sm {playerState.metronomeOn ? 'active' : ''}" 
       onclick={toggleMetronome}
     >
-      ♩ CLICK
+      {i18n.clickBtn}
     </button>
   </div>
 </header>
@@ -90,13 +126,23 @@ header {
 .logo { font-family: 'Bebas Neue', sans-serif; font-size: 24px; letter-spacing: 5px; color: var(--accent); text-shadow: 0 0 20px rgba(200,245,58,0.4); }
 .logo span { color: var(--muted); font-size: 10px; letter-spacing: 3px; display: block; margin-top: -3px; font-family: 'Space Mono', monospace; }
 .header-right { display: flex; align-items: center; gap: 12px; }
+
+.song-box { display: flex; align-items: center; gap: 12px; }
+.btn-import { 
+  background: var(--accent); color: #000; border: none; padding: 6px 8px; border-radius: 4px;
+  font-family: 'Bebas Neue', sans-serif; font-size: 14px; cursor: pointer; transition: all 0.2s;
+  height: 30px; display: flex; align-items: center; justify-content: center;
+}
+.btn-import:hover { background: #fff; transform: scale(1.05); }
+
 select.song-sel, select.device-sel {
   background: var(--panel2); border: 1px solid var(--border); color: var(--text);
   padding: 6px 10px; border-radius: 4px; font-family: 'Space Mono', monospace; font-size: 11px; cursor: pointer;
+  height: 30px; box-sizing: border-box;
 }
 select.device-sel { max-width: 140px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
 .bpm-box { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); border: 1px solid var(--border); padding: 4px 10px; border-radius: 4px; display: flex; align-items: center; gap: 6px; height: 30px; box-sizing: border-box; }
-.bpm-input { background: rgba(0,0,0,0.2); border: 1px solid transparent; color: var(--accent); font-family: inherit; font-size: 11px; font-weight: bold; width: 40px; padding: 2px 4px; border-radius: 2px; outline: none; -moz-appearance: textfield; transition: opacity 0.2s; }
+.bpm-input { background: rgba(0,0,0,0.2); border: 1px solid transparent; color: var(--accent); font-family: inherit; font-size: 11px; font-weight: bold; width: 40px; padding: 2px 4px; border-radius: 2px; outline: none; -moz-appearance: textfield; appearance: textfield; transition: opacity 0.2s; }
 .bpm-input:focus { border-color: var(--accent); }
 .bpm-input:disabled { opacity: 0.5; cursor: not-allowed; }
 .bpm-input::-webkit-outer-spin-button, .bpm-input::-webkit-inner-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
@@ -105,7 +151,7 @@ select.device-sel { max-width: 140px; text-overflow: ellipsis; white-space: nowr
 .btn-sm {
   background: transparent; border: 1px solid var(--border); color: var(--muted);
   padding: 6px 12px; border-radius: 4px; font-size: 11px; cursor: pointer; font-family: 'Space Mono', monospace;
-  transition: all 0.2s;
+  transition: all 0.2s; height: 30px; display: flex; align-items: center; box-sizing: border-box;
 }
 .btn-sm:hover, .btn-sm.active { border-color: var(--accent); color: var(--accent); background: rgba(200,245,58,0.06); }
 </style>
