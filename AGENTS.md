@@ -106,12 +106,12 @@ AIコーディングエージェント向けの文書です。このドキュメ
   - `Dockerfile`: マルチステージビルド（`node:22-slim`）を使用します。
   - **ポート**: Cloud Run の仕様に合わせ、環境変数 `PORT` (デフォルト 8080) でリッスンします。
 - **デプロイコマンド（フルオプション）**:
-  無料枠を維持するためのリソース制限を含めた推奨コマンド：
+  環境変数 `GCP_PROJECT` および `GCP_REGION` を使用して、柔軟にターゲットを切り替え可能です。
   ```bash
   gcloud run deploy fretless-training \
     --source . \
-    --region asia-northeast1 \
-    --project warabimochi-kinako \
+    --region ${GCP_REGION} \
+    --project ${GCP_PROJECT} \
     --cpu 1 \
     --memory 512Mi \
     --max-instances 1 \
@@ -122,8 +122,8 @@ AIコーディングエージェント向けの文書です。このドキュメ
   現在のサービス設定（メモリ、CPU、インスタンス数など）を確認するコマンド：
   ```bash
   gcloud run services describe fretless-training \
-    --region asia-northeast1 \
-    --project warabimochi-kinako
+    --region ${GCP_REGION} \
+    --project ${GCP_PROJECT}
   ```
 - **制限の考え方**: 無料枠（Free Tier）を維持するため、最大インスタンス数は `1`、メモリは `512Mi` に制限して運用します。CPU割り当てはデフォルト（リクエスト処理時のみ）を推奨します。
 
