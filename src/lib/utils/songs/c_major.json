@@ -1,6 +1,7 @@
 {
   "name": "C Major Scale",
   "bpm": 80,
+  "key": "C",
   "timeSignature": [4, 4],
   "notes": [
     {"name":"C3", "midi":36, "string":"A", "fret":3, "beat":0, "dur":1},
