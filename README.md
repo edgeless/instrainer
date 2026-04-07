@@ -164,8 +164,8 @@ npm run preview
 ```bash
 gcloud run deploy fretless-training \
   --source . \
-  --region asia-northeast1 \
-  --project warabimochi-kinako \
+  --region ${GCP_REGION:-${GCP_REGION}} \
+  --project ${GCP_PROJECT:-${GCP_PROJECT}} \
   --cpu 1 \
   --memory 512Mi \
   --max-instances 1 \
