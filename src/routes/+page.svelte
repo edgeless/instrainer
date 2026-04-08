@@ -6,6 +6,9 @@
   import ScorePanel from '$lib/components/ScorePanel.svelte';
   import Transport from '$lib/components/Transport.svelte';
   import ResultOverlay from '$lib/components/ResultOverlay.svelte';
+  import { playerState } from '$lib/stores/player.svelte';
+  import FreeScoreArea from '$lib/components/FreeScoreArea.svelte';
+  import FreeScorePanel from '$lib/components/FreeScorePanel.svelte';
 </script>
 
 <MicPermission />
@@ -13,11 +16,19 @@
 <Header />
 
 <div class="app">
-  <ScoreSection />
+  {#if playerState.isFreeMode}
+    <FreeScoreArea />
+  {:else}
+    <ScoreSection />
+  {/if}
 
   <aside class="right-panel">
     <PitchMonitor />
-    <ScorePanel />
+    {#if playerState.isFreeMode}
+      <FreeScorePanel />
+    {:else}
+      <ScorePanel />
+    {/if}
   </aside>
 
   <Transport />

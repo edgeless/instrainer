@@ -63,6 +63,7 @@
       outputDev: isJa ? "出力デバイス" : "Output Device",
       repeat: isJa ? "リピート" : "Repeat",
       bpm: isJa ? "テンポ" : "BPM",
+      freeMode: isJa ? "フリー採点" : "FREE MODE",
     };
   });
 
@@ -88,7 +89,7 @@
       </select>
     {/if}
     <div class="song-box">
-      <select class="song-sel" value={playerState.currentSongKey} onchange={onSongChange}>
+      <select class="song-sel" value={playerState.currentSongKey} onchange={onSongChange} disabled={playerState.isFreeMode}>
         {#each Object.entries(SONGS) as [key, s]}
           <option value={key}>{s.name}</option>
         {/each}
@@ -96,16 +97,23 @@
           <option value="imported">✨ {playerState.importedSong.name}</option>
         {/if}
       </select>
-      <button class="btn-import" onclick={onImportIReal} title={i18n.importTitle}>
+      <button class="btn-import" onclick={onImportIReal} title={i18n.importTitle} disabled={playerState.isFreeMode}>
         IRB
       </button>
     </div>
     <div class="bpm-box" role="spinbutton" tabindex="-1" onwheel={onRepeatWheel} title={i18n.scrollHint}>
-      {i18n.repeat} <span class="bpm-val {playerState.status !== 'idle' ? 'disabled' : ''}">{playerState.repeatCount}</span>
+      {i18n.repeat} <span class="bpm-val {playerState.status !== 'idle' || playerState.isFreeMode ? 'disabled' : ''}">{playerState.repeatCount}</span>
     </div>
     <div class="bpm-box">
-      {i18n.bpm} <input type="number" bind:value={playerState.song.bpm} onwheel={onBpmWheel} min="10" max="300" class="bpm-input" title={i18n.scrollHint} disabled={playerState.status !== 'idle'} />
+      {i18n.bpm} <input type="number" bind:value={playerState.song.bpm} onwheel={onBpmWheel} min="10" max="300" class="bpm-input" title={i18n.scrollHint} disabled={playerState.status !== 'idle' || playerState.isFreeMode} />
     </div>
+    <button
+      class="btn-sm {playerState.isFreeMode ? 'active free' : ''}"
+      onclick={() => playerState.isFreeMode = !playerState.isFreeMode}
+      disabled={playerState.status !== 'idle'}
+    >
+      {i18n.freeMode}
+    </button>
     <button 
       class="btn-sm {playerState.metronomeOn ? 'active' : ''}" 
       onclick={toggleMetronome}
@@ -154,4 +162,6 @@ select.device-sel { max-width: 140px; text-overflow: ellipsis; white-space: nowr
   transition: all 0.2s; height: 30px; display: flex; align-items: center; box-sizing: border-box;
 }
 .btn-sm:hover, .btn-sm.active { border-color: var(--accent); color: var(--accent); background: rgba(200,245,58,0.06); }
+.btn-sm.active.free { border-color: var(--accent2); color: var(--accent2); background: rgba(58,245,160,0.1); box-shadow: 0 0 10px rgba(58,245,160,0.2); }
+.btn-sm:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>

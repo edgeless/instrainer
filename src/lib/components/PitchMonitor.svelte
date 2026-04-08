@@ -10,6 +10,7 @@
 
   let detectedFreq: number = $state(-1);
   let cents: number | null = $state(null);
+  let prevFreq: number = -1;
   let phase = 0;
   
   let isIdle = $derived(!playerState.isPlaying && !playerState.isRecording);
@@ -38,7 +39,21 @@
       const freq = detectPitch(audioState.analyserNode, audioState.pitchBuf, audioState.audioCtx.sampleRate);
       detectedFreq = freq;
       if (playerState.isRecording && freq > 0 && playerState.currentBeat >= 0) {
-        scoreState.currentCentsHistory.push(freq);
+        // スライド検知
+        let sliding = false;
+        if (prevFreq > 0 && freq > 0) {
+          const diffCents = freqToCents(freq, prevFreq);
+          if (diffCents !== null && Math.abs(diffCents) > 25) {
+            sliding = true;
+            console.debug(`[Slide] Speed: ${Math.round(diffCents)}c/frame`);
+          }
+        }
+        scoreState.isSliding = sliding;
+        scoreState.currentCentsHistory.push({ freq, isSliding: sliding });
+        prevFreq = freq;
+      } else {
+        prevFreq = freq > 0 ? freq : -1;
+        scoreState.isSliding = false;
       }
     } else {
       detectedFreq = -1;
@@ -47,6 +62,10 @@
     // Update derived cents and needle
     let targetFreq = 0;
     if (!playerState.isPlaying && !playerState.isRecording) {
+      if (detectedFreq > 0) {
+        targetFreq = midiToFreq(freqToMidi(detectedFreq));
+      }
+    } else if (playerState.isFreeMode) {
       if (detectedFreq > 0) {
         targetFreq = midiToFreq(freqToMidi(detectedFreq));
       }
@@ -70,6 +89,11 @@
         else if (absC <= playerState.tolerance) { bg = 'var(--accent)'; shadow = '0 0 8px var(--accent)'; }
         else if (absC <= playerState.tolerance * 2) { bg = 'var(--warn)'; shadow = '0 0 8px var(--warn)'; }
         else { bg = 'var(--danger)'; shadow = '0 0 8px var(--danger)'; }
+
+        if (scoreState.isSliding) {
+           bg = '#3ab4f5'; shadow = '0 0 12px #3ab4f5';
+        }
+
         centNeedle.style.background = bg;
         centNeedle.style.boxShadow = shadow;
       } else {
@@ -134,7 +158,13 @@
   <div class="sec-hdr" style="margin:-12px -12px 0; padding:8px 12px;">PITCH MONITOR</div>
 
   <div class="target-box">
-    <div class="target-lbl">{isIdle ? 'MIC PITCH (TUNER)' : 'TARGET NOTE'}</div>
+    <div class="target-lbl">
+      {#if playerState.isFreeMode}
+        {playerState.isPlaying || playerState.isRecording ? 'LIVE PITCH' : 'MIC PITCH (TUNER)'}
+      {:else}
+        {isIdle ? 'MIC PITCH (TUNER)' : 'TARGET NOTE'}
+      {/if}
+    </div>
     <div class="target-note" style="color: {isIdle ? 'var(--text)' : 'var(--accent)'}; text-shadow: {isIdle ? 'none' : '0 0 30px rgba(200,245,58,0.5)'};">
       {displayNoteName}
     </div>
