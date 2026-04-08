@@ -2,7 +2,7 @@
   import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds } from '$lib/stores/player.svelte';
   import { scoreState, resetScore } from '$lib/stores/score.svelte';
   import { audioState, playClick } from '$lib/stores/audio.svelte';
-  import { midiToFreq, freqToCents } from '$lib/utils/pitch';
+  import { midiToFreq, freqToCents, freqToMidi } from '$lib/utils/pitch';
 
   let beatInterval: any = null;
 
@@ -19,7 +19,9 @@
     getTotalBeats() ? (playerState.currentBeat / getTotalBeats()) * 100 : 0
   );
   let posSec = $derived(
-    (playerState.currentBeat / playerState.song.bpm) * 60
+    playerState.isFreeMode 
+      ? (playerState.currentBeat < 0 ? 0 : (playerState.currentBeat / 120) * 60) // フリーモード時は仮に 120BPM 相当で秒数計算
+      : (playerState.currentBeat / playerState.song.bpm) * 60
   );
 
   function scheduleBeat() {
@@ -30,7 +32,7 @@
 
     function tick() {
       if (!playerState.isPlaying && !playerState.isRecording) return;
-      if (playerState.currentBeat >= totalBeats) {
+      if (!playerState.isFreeMode && playerState.currentBeat >= totalBeats) {
         if (playerState.isRecording) stopRecord();
         else pausePlay();
         return;
@@ -63,14 +65,15 @@
         }
       }
 
+      const isFree = playerState.isFreeMode;
       const prevNoteIdx = playerState.currentNoteIdx;
-      if (targetNoteIdx !== prevNoteIdx) {
+      if (!isFree && targetNoteIdx !== prevNoteIdx) {
         if (playerState.isRecording && scoreState.currentCentsHistory.length > 0) {
           scoreState.recordedSamples.push({
             noteIdx: prevNoteIdx,
             samples: [...scoreState.currentCentsHistory]
           });
-          gradeNote(prevNoteIdx, scoreState.currentCentsHistory);
+          gradeNote(prevNoteIdx, [...scoreState.currentCentsHistory]);
           scoreState.currentCentsHistory = [];
         }
         playerState.currentNoteIdx = targetNoteIdx;
@@ -82,11 +85,22 @@
     tick();
   }
 
-  function gradeNote(idx: number, centsHistory: number[]) {
+  function gradeNote(idx: number, centsHistory: { freq: number, isSliding: boolean }[]) {
     if (!centsHistory || centsHistory.length === 0) return;
     const note = playerState.song.notes[idx];
     const targetF = midiToFreq(note.midi);
-    const centsArr = centsHistory.filter(f => f > 0).map(f => freqToCents(f, targetF) as number);
+    
+    let validSamples = centsHistory.filter(h => h.freq > 0 && !h.isSliding);
+    const totalCount = centsHistory.filter(h => h.freq > 0).length;
+    
+    if (validSamples.length === 0 && totalCount > 0) {
+      console.warn(`[Analysis] Note ${idx} (${note.name}): All samples were marked as sliding. Falling back to all samples.`);
+      validSamples = centsHistory.filter(h => h.freq > 0);
+    }
+
+    const centsArr = validSamples.map(h => freqToCents(h.freq, targetF) as number);
+    console.log(`[Analysis] Note ${idx}: total=${totalCount}, valid=${validSamples.length}, excluded=${totalCount - validSamples.length}`);
+    
     if (centsArr.length === 0) {
       scoreState.noteResults[idx] = { grade: 'miss', avgCents: null };
       return;
@@ -102,13 +116,72 @@
     scoreState.noteResults[idx] = { grade, avgCents: median, rawCents: centsArr };
   }
 
+  function finalizeFreeModeSession() {
+    const history = scoreState.currentCentsHistory;
+    if (history.length === 0) return;
+
+    let validHistory = history.filter(h => h.freq > 0 && !h.isSliding);
+    const totalHistory = history.filter(h => h.freq > 0);
+    
+    if (validHistory.length === 0 && totalHistory.length > 0) {
+      console.warn("[Free] All samples were marked as sliding. Falling back to all samples.");
+      validHistory = totalHistory;
+    }
+
+    const excludedCount = history.filter(h => h.freq > 0).length - validHistory.length;
+    console.log(`[Free] Finalizing: total=${totalHistory.length}, valid=${validHistory.length}, excluded=${excludedCount}`);
+
+    const allCents = validHistory.map(h => {
+      const targetF = midiToFreq(freqToMidi(h.freq));
+      return freqToCents(h.freq, targetF);
+    }).filter(c => c !== null) as number[];
+
+    if (allCents.length === 0) {
+      scoreState.freeModeStats = {
+        avgDev: null,
+        stability: null,
+        sampleCount: 0,
+        excludedSamples: excludedCount
+      };
+      return;
+    }
+
+    const avg = allCents.reduce((a, b) => a + b, 0) / allCents.length;
+    let inToleranceCount = 0;
+    
+    allCents.forEach(c => {
+      if (Math.abs(c) <= playerState.tolerance) {
+        inToleranceCount++;
+      }
+    });
+
+    scoreState.freeModeStats = {
+      avgDev: avg,
+      stability: inToleranceCount / allCents.length,
+      sampleCount: allCents.length,
+      excludedSamples: excludedCount
+    };
+  }
+
   function runPostAnalysis() {
+    console.log(`[Analysis] Running post-analysis for ${scoreState.recordedSamples.length} notes`);
     for (let i = 0; i < scoreState.recordedSamples.length; i++) {
       const rs = scoreState.recordedSamples[i];
       const note = playerState.song.notes[rs.noteIdx];
       if (!note) continue;
       const targetF = midiToFreq(note.midi);
-      const centsArr = rs.samples.filter(f => f > 0).map(f => freqToCents(f, targetF) as number);
+      
+      const samples = rs.samples as { freq: number, isSliding: boolean }[];
+      let validSamples = samples.filter(h => h.freq > 0 && !h.isSliding);
+      const totalCount = samples.filter(h => h.freq > 0).length;
+
+      if (validSamples.length === 0 && totalCount > 0) {
+        console.warn(`[Analysis] Post: Note ${rs.noteIdx} (${note.name}) has 0 valid samples. Falling back.`);
+        validSamples = samples.filter(h => h.freq > 0);
+      }
+
+      const centsArr = validSamples.map(h => freqToCents(h.freq, targetF) as number);
+      
       if (centsArr.length === 0) {
         scoreState.noteResults[rs.noteIdx] = { grade: 'miss', avgCents: null };
         continue;
@@ -174,15 +247,21 @@
     playerState.isRecording = true;
     playerState.isPlaying = true;
     playerState.currentNoteIdx = 0;
-    playerState.currentBeat = -4;
-    playerState.currentLoop = 1;
     resetScore();
     playerState.status = 'rec';
+    if (playerState.isFreeMode) {
+      playerState.currentBeat = 0; // フリーモードは即時開始
+    } else {
+      playerState.currentBeat = -4;
+    }
     scheduleBeat();
   }
 
   function stopRecord() {
-    if (scoreState.currentCentsHistory.length > 0) {
+    if (playerState.isFreeMode) {
+      finalizeFreeModeSession();
+      scoreState.currentCentsHistory = [];
+    } else if (scoreState.currentCentsHistory.length > 0) {
       scoreState.recordedSamples.push({
         noteIdx: playerState.currentNoteIdx,
         samples: [...scoreState.currentCentsHistory]
@@ -193,7 +272,7 @@
     playerState.isPlaying = false;
     if (beatInterval) clearTimeout(beatInterval);
     playerState.status = 'idle';
-    runPostAnalysis();
+    if (!playerState.isFreeMode) runPostAnalysis();
     setTimeout(() => {
       scoreState.showResultOverlay = true;
     }, 500);
@@ -255,9 +334,12 @@
     <div class="status-chip sc-idle">IDLE</div>
   {/if}
 
-  <button class="btn-result {scoreState.noteResults.length > 0 ? 'has-result' : ''}" onclick={() => {
-    if(scoreState.noteResults.length > 0) scoreState.showResultOverlay = true;
-    else alert('まず録音してください。REC ボタンを押して演奏後、停止すると分析できます。');
+  <button class="btn-result {(playerState.isFreeMode ? scoreState.freeModeStats.sampleCount > 0 : scoreState.noteResults.length > 0) ? 'has-result' : ''}" onclick={() => {
+    if (playerState.isFreeMode ? scoreState.freeModeStats.sampleCount > 0 : scoreState.noteResults.length > 0) {
+      scoreState.showResultOverlay = true;
+    } else {
+      alert('まず録音してください。REC ボタンを押して演奏後、停止すると分析できます。');
+    }
   }}>RESULT</button>
 </div>
 
@@ -298,11 +380,11 @@
 
 .tol-ctrl { display: flex; align-items: center; gap: 6px; font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted); white-space: nowrap; }
 .tol-ctrl input[type=range] {
-  -webkit-appearance: none; width: 70px; height: 3px;
+  -webkit-appearance: none; appearance: none; width: 70px; height: 3px;
   background: var(--border); border-radius: 2px; outline: none; cursor: pointer;
 }
 .tol-ctrl input::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 11px; height: 11px; border-radius: 50%;
+  -webkit-appearance: none; appearance: none; width: 11px; height: 11px; border-radius: 50%;
   background: var(--accent); box-shadow: 0 0 5px var(--accent);
 }
 
