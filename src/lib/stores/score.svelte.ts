@@ -15,6 +15,7 @@ export const scoreState = $state<{
   currentCentsHistory: { freq: number, isSliding: boolean }[];
   showResultOverlay: boolean;
   isSliding: boolean;
+  detectedFreq: number;
   freeModeStats: {
     avgDev: number | null;
     stability: number | null;
@@ -27,6 +28,7 @@ export const scoreState = $state<{
   currentCentsHistory: [],
   showResultOverlay: false,
   isSliding: false,
+  detectedFreq: -1,
   freeModeStats: {
     avgDev: null,
     stability: null,

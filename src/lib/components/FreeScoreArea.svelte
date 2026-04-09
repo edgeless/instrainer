@@ -1,30 +1,9 @@
 <script lang="ts">
   import { playerState } from '$lib/stores/player.svelte';
-  import { audioState } from '$lib/stores/audio.svelte';
-  import { detectPitch, freqToMidi, midiToNoteName } from '$lib/utils/pitch';
-  import { onMount, onDestroy } from 'svelte';
+  import { scoreState } from '$lib/stores/score.svelte';
+  import { freqToMidi, midiToNoteName } from '$lib/utils/pitch';
 
-  let detectedFreq = $state(-1);
-  let animFrameId: number;
-
-  let noteName = $derived(detectedFreq > 0 ? midiToNoteName(freqToMidi(detectedFreq)) : '—');
-
-  function loop() {
-    animFrameId = requestAnimationFrame(loop);
-    if (audioState.analyserNode && audioState.pitchBuf && audioState.audioCtx) {
-      detectedFreq = detectPitch(audioState.analyserNode, audioState.pitchBuf, audioState.audioCtx.sampleRate);
-    } else {
-      detectedFreq = -1;
-    }
-  }
-
-  onMount(() => {
-    animFrameId = requestAnimationFrame(loop);
-  });
-
-  onDestroy(() => {
-    if (animFrameId) cancelAnimationFrame(animFrameId);
-  });
+  let noteName = $derived(scoreState.detectedFreq > 0 ? midiToNoteName(freqToMidi(scoreState.detectedFreq)) : '—');
 
   let i18n = $derived.by(() => {
     const isJa = typeof navigator !== 'undefined' && navigator.language?.startsWith('ja');
@@ -47,7 +26,7 @@
 
     <div class="pitch-display">
       <div class="pitch-lbl">{i18n.pitch}</div>
-      <div class="pitch-val" class:active={detectedFreq > 0}>{noteName}</div>
+      <div class="pitch-val" class:active={scoreState.detectedFreq > 0}>{noteName}</div>
     </div>
   </div>
 

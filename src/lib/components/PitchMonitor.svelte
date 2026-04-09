@@ -38,6 +38,7 @@
     if (audioState.analyserNode && audioState.pitchBuf && audioState.audioCtx) {
       const freq = detectPitch(audioState.analyserNode, audioState.pitchBuf, audioState.audioCtx.sampleRate);
       detectedFreq = freq;
+      scoreState.detectedFreq = freq;
       if (playerState.isRecording && freq > 0 && playerState.currentBeat >= 0) {
         // スライド検知
         let sliding = false;
@@ -50,6 +51,39 @@
         }
         scoreState.isSliding = sliding;
         scoreState.currentCentsHistory.push({ freq, isSliding: sliding });
+
+        // フリーモード時のリアルタイム統計更新
+        if (playerState.isFreeMode) {
+          if (!sliding) {
+            const targetMidi = freqToMidi(freq);
+            const targetF = midiToFreq(targetMidi);
+            const currentCents = freqToCents(freq, targetF);
+
+            if (currentCents !== null) {
+              const stats = scoreState.freeModeStats;
+              const newCount = stats.sampleCount + 1;
+              const isWithin = Math.abs(currentCents) <= playerState.tolerance;
+
+              // 逐次平均の更新式: NewAvg = OldAvg + (NewValue - OldAvg) / NewCount
+              const oldAvg = stats.avgDev ?? 0;
+              const newAvg = oldAvg + (currentCents - oldAvg) / newCount;
+
+              // 逐次安定度（確率）の更新
+              const oldStab = stats.stability ?? 0;
+              const newStab = oldStab + ((isWithin ? 1 : 0) - oldStab) / newCount;
+
+              scoreState.freeModeStats = {
+                ...stats,
+                avgDev: newAvg,
+                stability: newStab,
+                sampleCount: newCount
+              };
+            }
+          } else {
+            scoreState.freeModeStats.excludedSamples++;
+          }
+        }
+
         prevFreq = freq;
       } else {
         prevFreq = freq > 0 ? freq : -1;
@@ -57,6 +91,7 @@
       }
     } else {
       detectedFreq = -1;
+      scoreState.detectedFreq = -1;
     }
 
     // Update derived cents and needle
