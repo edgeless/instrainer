@@ -10,7 +10,7 @@ export function freqToCents(detected: number, target: number): number | null {
 }
 
 // YIN Pitch Detection (fast mode: small window)
-export function detectPitch(analyserNode: AnalyserNode, pitchBuf: Float32Array, sampleRate: number): number {
+export function detectPitch(analyserNode: AnalyserNode, pitchBuf: any, sampleRate: number): number {
   if (!analyserNode) return -1;
   analyserNode.getFloatTimeDomainData(pitchBuf);
   const buf = pitchBuf;
@@ -148,4 +148,13 @@ export function midiToNoteName(midi: number): string {
   if (midi < 0) return '—';
   const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   return notes[midi % 12] + (Math.floor(midi / 12) - 1);
+}
+
+export type Grade = 'perfect' | 'good' | 'ok' | 'miss';
+
+export function getGrade(absCents: number, tolerance: number): Grade {
+  if (absCents <= tolerance * 0.5) return 'perfect';
+  if (absCents <= tolerance) return 'good';
+  if (absCents <= tolerance * 2) return 'ok';
+  return 'miss';
 }
