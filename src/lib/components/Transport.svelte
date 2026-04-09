@@ -2,7 +2,7 @@
   import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds } from '$lib/stores/player.svelte';
   import { scoreState, resetScore } from '$lib/stores/score.svelte';
   import { audioState, playClick } from '$lib/stores/audio.svelte';
-  import { midiToFreq, freqToCents, freqToMidi } from '$lib/utils/pitch';
+  import { midiToFreq, freqToCents, freqToMidi, getGrade } from '$lib/utils/pitch';
 
   let beatInterval: any = null;
 
@@ -56,13 +56,18 @@
 
       // リピート時のノートインデックス計算（元の曲内のビート位置で判定）
       const beatInLoop = originalBeats > 0 ? playerState.currentBeat % originalBeats : playerState.currentBeat;
-      let targetNoteIdx = 0;
-      for (let i = 0; i < playerState.song.notes.length; i++) {
-        if (playerState.song.notes[i].beat <= beatInLoop) {
-          targetNoteIdx = i;
-        } else {
-          break;
-        }
+      let targetNoteIdx = playerState.currentNoteIdx;
+
+      // インデックスが範囲外、またはビートが現在のノートより前の場合は最初から（シークやループ時、曲の変更時）
+      if (targetNoteIdx >= playerState.song.notes.length || playerState.song.notes[targetNoteIdx]?.beat > beatInLoop) {
+        targetNoteIdx = 0;
+      }
+      // ビートが進んでいる間、インデックスを進める
+      while (
+        targetNoteIdx + 1 < playerState.song.notes.length &&
+        playerState.song.notes[targetNoteIdx + 1].beat <= beatInLoop
+      ) {
+        targetNoteIdx++;
       }
 
       const isFree = playerState.isFreeMode;
@@ -107,12 +112,7 @@
     }
     const sorted = [...centsArr].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)];
-    const abs = Math.abs(median);
-    let grade: 'perfect' | 'good' | 'ok' | 'miss';
-    if (abs <= playerState.tolerance * 0.5) grade = 'perfect';
-    else if (abs <= playerState.tolerance) grade = 'good';
-    else if (abs <= playerState.tolerance * 2) grade = 'ok';
-    else grade = 'miss';
+    const grade = getGrade(Math.abs(median), playerState.tolerance);
     scoreState.noteResults[idx] = { grade, avgCents: median, rawCents: centsArr };
   }
 
@@ -190,12 +190,7 @@
       const trim = Math.floor(s.length * 0.1);
       const trimmed = s.slice(trim, s.length - trim);
       const mean = trimmed.length ? trimmed.reduce((a, b) => a + b, 0) / trimmed.length : s[Math.floor(s.length / 2)];
-      const abs = Math.abs(mean);
-      let grade: 'perfect' | 'good' | 'ok' | 'miss';
-      if (abs <= playerState.tolerance * 0.5) grade = 'perfect';
-      else if (abs <= playerState.tolerance) grade = 'good';
-      else if (abs <= playerState.tolerance * 2) grade = 'ok';
-      else grade = 'miss';
+      const grade = getGrade(Math.abs(mean), playerState.tolerance);
       scoreState.noteResults[rs.noteIdx] = { grade, avgCents: mean, rawCents: centsArr };
     }
   }
@@ -292,14 +287,14 @@
     if (originalBeats > 0) {
       playerState.currentLoop = Math.floor(targetBeat / originalBeats) + 1;
       const beatInLoop = targetBeat % originalBeats;
-      playerState.currentNoteIdx = 0;
-      for (let i = 0; i < playerState.song.notes.length; i++) {
-        if (playerState.song.notes[i].beat <= beatInLoop) {
-          playerState.currentNoteIdx = i;
-        } else {
-          break;
-        }
+      let targetNoteIdx = 0;
+      while (
+        targetNoteIdx + 1 < playerState.song.notes.length &&
+        playerState.song.notes[targetNoteIdx + 1].beat <= beatInLoop
+      ) {
+        targetNoteIdx++;
       }
+      playerState.currentNoteIdx = targetNoteIdx;
     }
   }
 </script>

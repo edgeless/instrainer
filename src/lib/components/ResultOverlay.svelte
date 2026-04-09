@@ -110,7 +110,7 @@
               {#if r && r.avgCents !== null}
                 {@const abs = Math.abs(r.avgCents)}
                 {@const pct = Math.max(5, Math.min(100, 100 - abs * 1.5))}
-                {@const col = abs <= playerState.tolerance*0.5 ? 'var(--accent2)' : abs <= playerState.tolerance ? 'var(--accent)' : abs <= playerState.tolerance*2 ? 'var(--warn)' : 'var(--danger)'}
+                {@const col = r.grade === 'perfect' ? 'var(--accent2)' : r.grade === 'good' ? 'var(--accent)' : r.grade === 'ok' ? 'var(--warn)' : 'var(--danger)'}
                 {@const sign = r.avgCents > 0 ? '+' : ''}
                 <div class="rc-brow">
                   <span class="rc-bnote">{note.name}</span>

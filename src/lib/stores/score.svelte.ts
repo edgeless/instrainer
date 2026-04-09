@@ -1,5 +1,7 @@
+import type { Grade } from '$lib/utils/pitch';
+
 export type NoteResult = {
-  grade: 'perfect' | 'good' | 'ok' | 'miss';
+  grade: Grade;
   avgCents: number | null;
   rawCents?: number[];
 };
