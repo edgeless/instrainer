@@ -10,7 +10,7 @@ export function freqToCents(detected: number, target: number): number | null {
 }
 
 // YIN Pitch Detection (fast mode: small window)
-export function detectPitch(analyserNode: AnalyserNode, pitchBuf: any, sampleRate: number): number {
+export function detectPitch(analyserNode: AnalyserNode, pitchBuf: Float32Array | any, sampleRate: number): number {
   if (!analyserNode) return -1;
   analyserNode.getFloatTimeDomainData(pitchBuf);
   const buf = pitchBuf;
