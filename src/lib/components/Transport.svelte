@@ -2,7 +2,7 @@
   import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds } from '$lib/stores/player.svelte';
   import { scoreState, resetScore } from '$lib/stores/score.svelte';
   import { audioState, playClick } from '$lib/stores/audio.svelte';
-  import { midiToFreq, freqToCents } from '$lib/utils/pitch';
+  import { midiToFreq, freqToCents, getGrade } from '$lib/utils/pitch';
 
   let beatInterval: any = null;
 
@@ -93,12 +93,7 @@
     }
     const sorted = [...centsArr].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)];
-    const abs = Math.abs(median);
-    let grade: 'perfect' | 'good' | 'ok' | 'miss';
-    if (abs <= playerState.tolerance * 0.5) grade = 'perfect';
-    else if (abs <= playerState.tolerance) grade = 'good';
-    else if (abs <= playerState.tolerance * 2) grade = 'ok';
-    else grade = 'miss';
+    const grade = getGrade(Math.abs(median), playerState.tolerance);
     scoreState.noteResults[idx] = { grade, avgCents: median, rawCents: centsArr };
   }
 
@@ -117,12 +112,7 @@
       const trim = Math.floor(s.length * 0.1);
       const trimmed = s.slice(trim, s.length - trim);
       const mean = trimmed.length ? trimmed.reduce((a, b) => a + b, 0) / trimmed.length : s[Math.floor(s.length / 2)];
-      const abs = Math.abs(mean);
-      let grade: 'perfect' | 'good' | 'ok' | 'miss';
-      if (abs <= playerState.tolerance * 0.5) grade = 'perfect';
-      else if (abs <= playerState.tolerance) grade = 'good';
-      else if (abs <= playerState.tolerance * 2) grade = 'ok';
-      else grade = 'miss';
+      const grade = getGrade(Math.abs(mean), playerState.tolerance);
       scoreState.noteResults[rs.noteIdx] = { grade, avgCents: mean, rawCents: centsArr };
     }
   }

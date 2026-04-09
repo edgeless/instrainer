@@ -149,3 +149,12 @@ export function midiToNoteName(midi: number): string {
   const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   return notes[midi % 12] + (Math.floor(midi / 12) - 1);
 }
+
+export type Grade = 'perfect' | 'good' | 'ok' | 'miss';
+
+export function getGrade(absCents: number, tolerance: number): Grade {
+  if (absCents <= tolerance * 0.5) return 'perfect';
+  if (absCents <= tolerance) return 'good';
+  if (absCents <= tolerance * 2) return 'ok';
+  return 'miss';
+}

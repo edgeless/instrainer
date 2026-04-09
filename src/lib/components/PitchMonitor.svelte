@@ -3,7 +3,7 @@
   import { playerState } from '$lib/stores/player.svelte';
   import { audioState } from '$lib/stores/audio.svelte';
   import { scoreState } from '$lib/stores/score.svelte';
-  import { midiToFreq, freqToCents, detectPitch, freqToMidi, midiToNoteName } from '$lib/utils/pitch';
+  import { midiToFreq, freqToCents, detectPitch, freqToMidi, midiToNoteName, getGrade } from '$lib/utils/pitch';
 
   let waveCanvas: HTMLCanvasElement | undefined = $state();
   let centNeedle: HTMLDivElement | undefined = $state();
@@ -64,11 +64,11 @@
         const clamped = Math.max(-50, Math.min(50, cents));
         const pct = 50 + (clamped / 50) * 46;
         centNeedle.style.left = `calc(${pct}% - 1.5px)`;
-        const absC = Math.abs(clamped);
+        const grade = getGrade(Math.abs(clamped), playerState.tolerance);
         let bg = '', shadow = '';
-        if (absC <= playerState.tolerance * 0.5) { bg = 'var(--accent2)'; shadow = '0 0 8px var(--accent2)'; }
-        else if (absC <= playerState.tolerance) { bg = 'var(--accent)'; shadow = '0 0 8px var(--accent)'; }
-        else if (absC <= playerState.tolerance * 2) { bg = 'var(--warn)'; shadow = '0 0 8px var(--warn)'; }
+        if (grade === 'perfect') { bg = 'var(--accent2)'; shadow = '0 0 8px var(--accent2)'; }
+        else if (grade === 'good') { bg = 'var(--accent)'; shadow = '0 0 8px var(--accent)'; }
+        else if (grade === 'ok') { bg = 'var(--warn)'; shadow = '0 0 8px var(--warn)'; }
         else { bg = 'var(--danger)'; shadow = '0 0 8px var(--danger)'; }
         centNeedle.style.background = bg;
         centNeedle.style.boxShadow = shadow;
@@ -156,7 +156,7 @@
       </div>
       <div id="centNeedle" bind:this={centNeedle}></div>
     </div>
-    <div class="cent-readout" style="color: {cents === null ? 'var(--muted)' : (absCents! <= playerState.tolerance ? 'var(--accent2)' : absCents! <= playerState.tolerance*2 ? 'var(--warn)' : 'var(--danger)')}">
+    <div class="cent-readout" style="color: {cents === null ? 'var(--muted)' : (getGrade(absCents!, playerState.tolerance) === 'perfect' || getGrade(absCents!, playerState.tolerance) === 'good' ? 'var(--accent2)' : getGrade(absCents!, playerState.tolerance) === 'ok' ? 'var(--warn)' : 'var(--danger)')}">
       {cents !== null ? (cents > 0 ? '+' : '') + Math.round(cents) + ' ¢' : '— ¢'}
     </div>
   </div>
