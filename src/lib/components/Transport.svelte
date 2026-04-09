@@ -54,13 +54,18 @@
 
       // リピート時のノートインデックス計算（元の曲内のビート位置で判定）
       const beatInLoop = originalBeats > 0 ? playerState.currentBeat % originalBeats : playerState.currentBeat;
-      let targetNoteIdx = 0;
-      for (let i = 0; i < playerState.song.notes.length; i++) {
-        if (playerState.song.notes[i].beat <= beatInLoop) {
-          targetNoteIdx = i;
-        } else {
-          break;
-        }
+      let targetNoteIdx = playerState.currentNoteIdx;
+
+      // インデックスが範囲外、またはビートが現在のノートより前の場合は最初から（シークやループ時、曲の変更時）
+      if (targetNoteIdx >= playerState.song.notes.length || playerState.song.notes[targetNoteIdx]?.beat > beatInLoop) {
+        targetNoteIdx = 0;
+      }
+      // ビートが進んでいる間、インデックスを進める
+      while (
+        targetNoteIdx + 1 < playerState.song.notes.length &&
+        playerState.song.notes[targetNoteIdx + 1].beat <= beatInLoop
+      ) {
+        targetNoteIdx++;
       }
 
       const prevNoteIdx = playerState.currentNoteIdx;
@@ -211,14 +216,14 @@
     if (originalBeats > 0) {
       playerState.currentLoop = Math.floor(targetBeat / originalBeats) + 1;
       const beatInLoop = targetBeat % originalBeats;
-      playerState.currentNoteIdx = 0;
-      for (let i = 0; i < playerState.song.notes.length; i++) {
-        if (playerState.song.notes[i].beat <= beatInLoop) {
-          playerState.currentNoteIdx = i;
-        } else {
-          break;
-        }
+      let targetNoteIdx = 0;
+      while (
+        targetNoteIdx + 1 < playerState.song.notes.length &&
+        playerState.song.notes[targetNoteIdx + 1].beat <= beatInLoop
+      ) {
+        targetNoteIdx++;
       }
+      playerState.currentNoteIdx = targetNoteIdx;
     }
   }
 </script>
