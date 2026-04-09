@@ -1,5 +1,6 @@
 <script lang="ts">
   import { playerState, getOriginalBeats } from '$lib/stores/player.svelte';
+  import { escapeHtml } from '$lib/utils/security';
   
   let viewMode = $state('both');
 
@@ -200,10 +201,10 @@
       // ヘ音記号・拍子記号
       if (row === 0) {
         html += `<text x="12" y="${staffTop + lineSpacing * 2 + 8}" font-size="38" fill="rgba(255,255,255,0.65)" font-family="serif" style="line-height:1">𝄢</text>`;
-        html += `<text x="46" y="${staffTop + lineSpacing * 1.5}" font-size="14" fill="rgba(255,255,255,0.6)" font-family="serif" font-weight="bold">${timeSigNum}</text>`;
-        html += `<text x="46" y="${staffTop + lineSpacing * 3.5}" font-size="14" fill="rgba(255,255,255,0.6)" font-family="serif" font-weight="bold">${timeSigDen}</text>`;
+        html += `<text x="46" y="${staffTop + lineSpacing * 1.5}" font-size="14" fill="rgba(255,255,255,0.6)" font-family="serif" font-weight="bold">${escapeHtml(timeSigNum)}</text>`;
+        html += `<text x="46" y="${staffTop + lineSpacing * 3.5}" font-size="14" fill="rgba(255,255,255,0.6)" font-family="serif" font-weight="bold">${escapeHtml(timeSigDen)}</text>`;
         if (playerState.song.key) {
-          html += `<text x="10" y="${staffTop - 12}" font-size="13" fill="var(--accent)" font-family="'Space Mono',monospace" font-weight="bold">Key: ${playerState.song.key}</text>`;
+          html += `<text x="10" y="${staffTop - 12}" font-size="13" fill="var(--accent)" font-family="'Space Mono',monospace" font-weight="bold">Key: ${escapeHtml(playerState.song.key)}</text>`;
         }
       }
 
@@ -288,7 +289,7 @@
           html += `<circle cx="${x + 9}" cy="${y - 2}" r="1.5" fill="${col}"/>`;
         }
         if (noteState !== 'upcoming')
-          html += `<text x="${x}" y="${rowH - 6}" text-anchor="middle" font-size="8" fill="${col}" font-family="'Space Mono',monospace">${note.name.replace(/\d+$/, '')}</text>`;
+          html += `<text x="${x}" y="${rowH - 6}" text-anchor="middle" font-size="8" fill="${col}" font-family="'Space Mono',monospace">${escapeHtml(note.name.replace(/\d+$/, ''))}</text>`;
         if (noteState === 'current')
           html += `<circle cx="${x}" cy="${y}" r="11" fill="none" stroke="${col}" stroke-width="1.5" opacity="0.4"/>`;
       });
@@ -356,8 +357,8 @@
         const beatNum = (note.beat % timeSigNum) + 1;
         const beatCol = i === playerState.currentNoteIdx ? 'var(--accent)' : 'var(--muted)';
 
-        html += `<div class="tab-note-val ${state}" style="left:${x-8}px;top:${y+1}px;width:16px;">${note.fret}</div>`;
-        html += `<div style="position:absolute;top:104px;left:${x-10}px;width:20px;text-align:center;font-size:8px;color:${beatCol};font-family:'Space Mono',monospace;">${beatNum}</div>`;
+        html += `<div class="tab-note-val ${state}" style="left:${x-8}px;top:${y+1}px;width:16px;">${escapeHtml(note.fret)}</div>`;
+        html += `<div style="position:absolute;top:104px;left:${x-10}px;width:20px;text-align:center;font-size:8px;color:${beatCol};font-family:'Space Mono',monospace;">${escapeHtml(beatNum)}</div>`;
       });
 
       html += `</div>`;
