@@ -1,0 +1,10 @@
+--- src/lib/components/ResultOverlay.svelte
++++ src/lib/components/ResultOverlay.svelte
+@@ -31,8 +31,6 @@
+   let withCents = $derived(graded.filter((r) => r?.avgCents !== null));
+   let avgDev = $derived(withCents.length > 0 ? withCents.reduce((s, r) => s + Math.abs(r!.avgCents as number), 0) / withCents.length : 0);
+-  let withTiming = $derived(scoreState.noteResults.filter((r) => r && r.timingDiffMs !== null));
+-  let avgTimingDev = $derived(withTiming.length > 0 ? withTiming.reduce((s, r) => s + Math.abs(r!.timingDiffMs as number), 0) / withTiming.length : 0);
+   let missCount = $derived(scoreState.noteResults.filter((r) => r && r.grade === 'miss').length);
+
+   let gradeLetter = $derived.by(() => {
