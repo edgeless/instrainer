@@ -1,10 +1,22 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds } from '$lib/stores/player.svelte';
   import { scoreState, resetScore } from '$lib/stores/score.svelte';
   import { audioState, playClick } from '$lib/stores/audio.svelte';
   import { midiToFreq, freqToCents, freqToMidi, getGrade, getTimingGrade, getCombinedGrade } from '$lib/utils/pitch';
 
   let beatInterval: any = null;
+
+  onDestroy(() => {
+    if (audioState.recordedAudioUrl) {
+      URL.revokeObjectURL(audioState.recordedAudioUrl);
+      audioState.recordedAudioUrl = null;
+    }
+  });
+
+  let downloadFilename = $derived(
+    `Fretless_Practice_${playerState.song.name}_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.webm`
+  );
 
   function fmtTime(sec: number) {
     const isNeg = sec < 0;
@@ -279,8 +291,25 @@
     }
   }
 
-  let playbackAudio: HTMLAudioElement | null = null;
+  interface HTMLAudioElementWithSink extends HTMLAudioElement {
+    setSinkId(sinkId: string): Promise<void>;
+  }
+
+  let playbackAudio: HTMLAudioElementWithSink | null = null;
   let playbackAudioSource: MediaElementAudioSourceNode | null = null;
+
+  function cleanupPlaybackAudio() {
+    if (playbackAudio) {
+      playbackAudio.pause();
+      playbackAudio.removeAttribute('src');
+      playbackAudio.load();
+      playbackAudio = null;
+    }
+    if (playbackAudioSource) {
+      playbackAudioSource.disconnect();
+      playbackAudioSource = null;
+    }
+  }
 
   function startPlay() {
     if (!audioState.audioCtx) return;
@@ -301,7 +330,7 @@
 
     if (audioState.recordedAudioUrl) {
       if (!playbackAudio) {
-        playbackAudio = new Audio(audioState.recordedAudioUrl);
+        playbackAudio = new Audio(audioState.recordedAudioUrl) as HTMLAudioElementWithSink;
         // 出力デバイスのルーティングのためにWeb Audio APIに接続
         playbackAudioSource = audioState.audioCtx.createMediaElementSource(playbackAudio);
         playbackAudioSource.connect(audioState.audioCtx.destination);
@@ -309,8 +338,8 @@
         playbackAudio.src = audioState.recordedAudioUrl;
       }
 
-      if (typeof (playbackAudio as any).setSinkId === 'function' && audioState.selectedOutputId) {
-         (playbackAudio as any).setSinkId(audioState.selectedOutputId).catch(() => {});
+      if (typeof playbackAudio.setSinkId === 'function' && audioState.selectedOutputId) {
+         playbackAudio.setSinkId(audioState.selectedOutputId).catch(() => {});
       }
 
       // 再生位置を現在のビートの経過時間に合わせる
@@ -351,10 +380,7 @@
     playerState.currentBeat = -4;
     playerState.currentLoop = 1;
     playerState.status = 'idle';
-    if (playbackAudio) {
-      playbackAudio.pause();
-      playbackAudio.currentTime = 0;
-    }
+    cleanupPlaybackAudio();
   }
 
   function seekStart() {
@@ -378,9 +404,12 @@
 
   let mediaRecorder: MediaRecorder | null = null;
   let recordedChunks: BlobPart[] = [];
+  let recordStopPromise: Promise<void> | null = null;
+  let recordStopResolver: (() => void) | null = null;
 
   function startRecord() {
     if (!audioState.audioCtx) return;
+    cleanupPlaybackAudio();
     playerState.isRecording = true;
     playerState.isPlaying = true;
     playerState.currentNoteIdx = 0;
@@ -400,9 +429,16 @@
         mediaRecorder.ondataavailable = (e) => {
           if (e.data.size > 0) recordedChunks.push(e.data);
         };
+        recordStopPromise = new Promise((resolve) => {
+          recordStopResolver = resolve;
+        });
         mediaRecorder.onstop = () => {
           const blob = new Blob(recordedChunks, { type: 'audio/webm' });
           audioState.recordedAudioUrl = URL.createObjectURL(blob);
+          if (recordStopResolver) {
+            recordStopResolver();
+            recordStopResolver = null;
+          }
         };
         mediaRecorder.start();
       } catch (e) {
@@ -422,9 +458,15 @@
     scheduleBeat();
   }
 
-  function stopRecord() {
+  async function stopRecord() {
+    let waitPromise = null;
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      waitPromise = recordStopPromise;
       mediaRecorder.stop();
+    }
+
+    if (waitPromise) {
+      await waitPromise;
     }
 
     if (playerState.isFreeMode) {
@@ -443,11 +485,11 @@
     if (beatInterval) clearTimeout(beatInterval);
     playerState.status = 'idle';
     if (!playerState.isFreeMode) runPostAnalysis();
-    setTimeout(() => {
-      if (!playerState.isFreeMode) {
-        scoreState.showResultOverlay = true;
-      }
-    }, 500);
+
+    // UI state change might need a tick, but audio blob is ready
+    if (!playerState.isFreeMode) {
+      scoreState.showResultOverlay = true;
+    }
   }
 
   function seekBar(e: MouseEvent) {
@@ -497,7 +539,7 @@
   <button class="tbtn" title="停止" onclick={stopAll}>⏹</button>
 
   {#if audioState.recordedAudioUrl}
-    <a href={audioState.recordedAudioUrl} download="recording.webm" class="tbtn dl-btn" title="録音データをダウンロード">⬇</a>
+    <a href={audioState.recordedAudioUrl} download={downloadFilename} class="tbtn dl-btn" title="録音データをダウンロード">⬇</a>
   {/if}
 
   <div class="prog-wrap">
@@ -564,7 +606,7 @@
 .tbtn.rec { border-color: var(--danger); color: var(--danger); background: rgba(245,58,58,0.08); }
 .tbtn.rec.on { background: var(--danger); color: white; box-shadow: 0 0 16px rgba(245,58,58,0.4); }
 .tbtn.rec.on::after {
-  content: ''; position: absolute; inset: -4px; border-radius: 50%;
+  content: ''; position: absolute; inset: -4px; border-radius: inherit;
   border: 2px solid var(--danger); animation: rp 1s ease-in-out infinite;
 }
 @keyframes rp { 0%,100%{opacity:.6;transform:scale(1)} 50%{opacity:0;transform:scale(1.3)} }
