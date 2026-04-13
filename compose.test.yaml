@@ -1,0 +1,19 @@
+services:
+  unit:
+    image: oven/bun:1
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: bun test tests/unit
+
+  e2etest:
+    # Use the official Playwright image that matches the major/minor version
+    image: mcr.microsoft.com/playwright:v1.50.1-noble
+    working_dir: /app
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    # Install node modules and run the e2e tests
+    command: bash -c "npm install && npx playwright install --with-deps chromium && npm run test:e2e"
