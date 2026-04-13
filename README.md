@@ -173,6 +173,17 @@ gcloud run deploy fretless-training \
   --memory 512Mi \
   --max-instances 1 \
   --allow-unauthenticated
+```
+
+### 自動デプロイ (CI/CD)
+
+GitHub Actions を使用して、`main` ブランチにプッシュ（マージ）された際に、自動的にテストと Cloud Run へのデプロイが行われます。
+この機能を利用するには、GitHub リポジトリの Settings > Secrets and variables > Actions に以下のシークレットを設定する必要があります。
+
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`: Workload Identity プロバイダのリソース名
+- `GCP_SERVICE_ACCOUNT`: 連携するサービスアカウントのメールアドレス
+- `GCP_REGION`: デプロイ先のリージョン (例: `asia-northeast1`)
+- `GCP_PROJECT_ID`: GCP のプロジェクトID
 
 ## テスト
 

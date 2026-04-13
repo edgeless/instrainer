@@ -1,4 +1,4 @@
-name: Test and Build
+name: Test, Build and Deploy
 
 on:
   pull_request:
@@ -42,3 +42,34 @@ jobs:
 
       - name: Run Build
         run: npm run build
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          workload_identity_provider: '${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
+          service_account: '${{ secrets.GCP_SERVICE_ACCOUNT }}'
+
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v2'
+
+      - name: 'Deploy to Cloud Run'
+        run: |
+          gcloud run deploy fretless-training \
+            --source . \
+            --region ${{ secrets.GCP_REGION }} \
+            --project ${{ secrets.GCP_PROJECT_ID }} \
+            --cpu 1 \
+            --memory 512Mi \
+            --max-instances 1 \
+            --allow-unauthenticated
