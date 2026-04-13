@@ -50,7 +50,7 @@
           }
         }
         scoreState.isSliding = sliding;
-        scoreState.currentCentsHistory.push({ freq, isSliding: sliding });
+        scoreState.currentCentsHistory.push({ freq, isSliding: sliding, time: performance.now() });
 
         // フリーモード時のリアルタイム統計更新
         if (playerState.isFreeMode) {

@@ -2,7 +2,7 @@
   import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds } from '$lib/stores/player.svelte';
   import { scoreState, resetScore } from '$lib/stores/score.svelte';
   import { audioState, playClick } from '$lib/stores/audio.svelte';
-  import { midiToFreq, freqToCents, freqToMidi, getGrade } from '$lib/utils/pitch';
+  import { midiToFreq, freqToCents, freqToMidi, getGrade, getTimingGrade, getCombinedGrade } from '$lib/utils/pitch';
 
   let beatInterval: any = null;
 
@@ -76,6 +76,7 @@
         if (playerState.isRecording && scoreState.currentCentsHistory.length > 0) {
           scoreState.recordedSamples.push({
             noteIdx: prevNoteIdx,
+            loopIdx: playerState.currentLoop,
             samples: [...scoreState.currentCentsHistory]
           });
           gradeNote(prevNoteIdx, [...scoreState.currentCentsHistory]);
@@ -90,7 +91,7 @@
     tick();
   }
 
-  function gradeNote(idx: number, centsHistory: { freq: number, isSliding: boolean }[]) {
+  function gradeNote(idx: number, centsHistory: { freq: number, isSliding: boolean, time: number }[]) {
     if (!centsHistory || centsHistory.length === 0) return;
     const note = playerState.song.notes[idx];
     const targetF = midiToFreq(note.midi);
@@ -107,13 +108,29 @@
     console.log(`[Analysis] Note ${idx}: total=${totalCount}, valid=${validSamples.length}, excluded=${totalCount - validSamples.length}`);
 
     if (centsArr.length === 0) {
-      scoreState.noteResults[idx] = { grade: 'miss', avgCents: null };
+      scoreState.noteResults[idx] = { grade: 'miss', combinedGrade: 'miss', pitchGrade: 'miss', timingGrade: 'miss', avgCents: null, timingDiffMs: null };
       return;
     }
     const sorted = [...centsArr].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)];
-    const grade = getGrade(Math.abs(median), playerState.tolerance);
-    scoreState.noteResults[idx] = { grade, avgCents: median, rawCents: centsArr };
+    const pitchGrade = getGrade(Math.abs(median), playerState.tolerance);
+
+    let timingGrade: 'miss' | 'ok' | 'good' | 'perfect' = 'miss';
+    let timingDiffMs: number | null = null;
+
+    if (playerState.playbackStartTimeMs !== null && validSamples.length > 0) {
+      const firstSampleTime = validSamples[0].time;
+      const originalBeats = getOriginalBeats();
+      const currentLoopOffset = (playerState.currentLoop - 1) * originalBeats;
+      const expectedNoteTimeMs = playerState.playbackStartTimeMs + ((note.beat + currentLoopOffset) * (60 / playerState.song.bpm) * 1000);
+
+      timingDiffMs = firstSampleTime - expectedNoteTimeMs;
+      timingGrade = getTimingGrade(Math.abs(timingDiffMs));
+    }
+
+    const combinedGrade = getCombinedGrade(pitchGrade, timingGrade);
+
+    scoreState.noteResults[idx] = { grade: combinedGrade, combinedGrade, pitchGrade, timingGrade, avgCents: median, timingDiffMs, rawCents: centsArr };
   }
 
   function finalizeFreeModeSession() {
@@ -171,7 +188,7 @@
       if (!note) continue;
       const targetF = midiToFreq(note.midi);
 
-      const samples = rs.samples as { freq: number, isSliding: boolean }[];
+      const samples = rs.samples as { freq: number, isSliding: boolean, time: number }[];
       let validSamples = samples.filter(h => h.freq > 0 && !h.isSliding);
       const totalCount = samples.filter(h => h.freq > 0).length;
 
@@ -183,15 +200,31 @@
       const centsArr = validSamples.map(h => freqToCents(h.freq, targetF) as number);
 
       if (centsArr.length === 0) {
-        scoreState.noteResults[rs.noteIdx] = { grade: 'miss', avgCents: null };
+        scoreState.noteResults[rs.noteIdx] = { grade: 'miss', combinedGrade: 'miss', pitchGrade: 'miss', timingGrade: 'miss', avgCents: null, timingDiffMs: null };
         continue;
       }
       const s = [...centsArr].sort((a, b) => a - b);
       const trim = Math.floor(s.length * 0.1);
       const trimmed = s.slice(trim, s.length - trim);
       const mean = trimmed.length ? trimmed.reduce((a, b) => a + b, 0) / trimmed.length : s[Math.floor(s.length / 2)];
-      const grade = getGrade(Math.abs(mean), playerState.tolerance);
-      scoreState.noteResults[rs.noteIdx] = { grade, avgCents: mean, rawCents: centsArr };
+      const pitchGrade = getGrade(Math.abs(mean), playerState.tolerance);
+
+      let timingGrade: 'miss' | 'ok' | 'good' | 'perfect' = 'miss';
+      let timingDiffMs: number | null = null;
+
+      if (playerState.playbackStartTimeMs !== null && validSamples.length > 0) {
+        const firstSampleTime = validSamples[0].time;
+        // In post analysis, calculate expected time
+        const originalBeats = getOriginalBeats();
+        const loopOffset = (rs.loopIdx - 1) * originalBeats;
+        const expectedNoteTimeMs = playerState.playbackStartTimeMs + ((note.beat + loopOffset) * (60 / playerState.song.bpm) * 1000);
+        timingDiffMs = firstSampleTime - expectedNoteTimeMs;
+        timingGrade = getTimingGrade(Math.abs(timingDiffMs));
+      }
+
+      const combinedGrade = getCombinedGrade(pitchGrade, timingGrade);
+
+      scoreState.noteResults[rs.noteIdx] = { grade: combinedGrade, combinedGrade, pitchGrade, timingGrade, avgCents: mean, timingDiffMs, rawCents: centsArr };
     }
   }
 
@@ -244,10 +277,15 @@
     playerState.currentNoteIdx = 0;
     resetScore();
     playerState.status = 'rec';
+
+    const secPerBeat = 60 / playerState.song.bpm;
+
     if (playerState.isFreeMode) {
       playerState.currentBeat = 0; // フリーモードは即時開始
+      playerState.playbackStartTimeMs = performance.now();
     } else {
       playerState.currentBeat = -4;
+      playerState.playbackStartTimeMs = performance.now() + (4 * secPerBeat * 1000);
     }
     scheduleBeat();
   }
@@ -259,6 +297,7 @@
     } else if (scoreState.currentCentsHistory.length > 0) {
       scoreState.recordedSamples.push({
         noteIdx: playerState.currentNoteIdx,
+        loopIdx: playerState.currentLoop,
         samples: [...scoreState.currentCentsHistory]
       });
       scoreState.currentCentsHistory = [];

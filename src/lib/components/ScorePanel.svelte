@@ -7,20 +7,27 @@
   let acc = $derived(graded.length > 0 ? Math.round((scored.length / graded.length) * 100) : null);
   let withCents = $derived(graded.filter(r => r?.avgCents !== null));
   let avgDev = $derived(withCents.length > 0 ? Math.round(withCents.reduce((s, r) => s + Math.abs(r!.avgCents as number), 0) / withCents.length) : null);
+  let withTiming = $derived(graded.filter(r => r?.timingDiffMs !== null && r?.timingDiffMs !== undefined));
+  let avgTimingDev = $derived(withTiming.length > 0 ? Math.round(withTiming.reduce((s, r) => s + Math.abs(r!.timingDiffMs as number), 0) / withTiming.length) : null);
 </script>
 
 <div class="score-panel">
   <div class="sp-title">SESSION SCORE</div>
-  <div class="sp-meters">
+  <div class="sp-meters" style="grid-template-columns: 1fr 1fr 1fr; gap: 4px;">
     <div class="sp-meter">
       <div class="sp-mlbl">ACCURACY</div>
-      <div class="sp-mval good">{acc !== null ? acc + '%' : '—%'}</div>
+      <div class="sp-mval good" style="font-size:20px;">{acc !== null ? acc + '%' : '—%'}</div>
       <div class="sp-bar"><div class="sp-fill" style="width:{acc !== null ? acc : 0}%;background:var(--accent2)"></div></div>
     </div>
     <div class="sp-meter">
-      <div class="sp-mlbl">AVG DEV</div>
-      <div class="sp-mval warn">{avgDev !== null ? '±' + avgDev + '¢' : '—¢'}</div>
+      <div class="sp-mlbl">PITCH DEV</div>
+      <div class="sp-mval warn" style="font-size:20px;">{avgDev !== null ? '±' + avgDev + '¢' : '—¢'}</div>
       <div class="sp-bar"><div class="sp-fill" style="width:{avgDev !== null ? Math.min(100, avgDev * 2) : 0}%;background:var(--warn)"></div></div>
+    </div>
+    <div class="sp-meter">
+      <div class="sp-mlbl">TIME DEV</div>
+      <div class="sp-mval warn" style="font-size:20px;">{avgTimingDev !== null ? '±' + avgTimingDev + 'ms' : '—ms'}</div>
+      <div class="sp-bar"><div class="sp-fill" style="width:{avgTimingDev !== null ? Math.min(100, avgTimingDev / 2) : 0}%;background:var(--warn)"></div></div>
     </div>
   </div>
   

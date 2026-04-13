@@ -158,3 +158,21 @@ export function getGrade(absCents: number, tolerance: number): Grade {
   if (absCents <= tolerance * 2) return 'ok';
   return 'miss';
 }
+
+export function getTimingGrade(absDiffMs: number): Grade {
+  if (absDiffMs <= 50) return 'perfect';
+  if (absDiffMs <= 100) return 'good';
+  if (absDiffMs <= 200) return 'ok';
+  return 'miss';
+}
+
+export function getCombinedGrade(pitchGrade: Grade, timingGrade: Grade): Grade {
+  const gradeValue = { perfect: 3, good: 2, ok: 1, miss: 0 };
+  const valueToGrade = ['miss', 'ok', 'good', 'perfect'] as Grade[];
+
+  const pitchVal = gradeValue[pitchGrade];
+  const timingVal = gradeValue[timingGrade];
+
+  const avg = Math.floor((pitchVal + timingVal) / 2);
+  return valueToGrade[avg];
+}
