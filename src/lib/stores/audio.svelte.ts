@@ -26,6 +26,7 @@ export const audioState = $state<{
   devices: MediaDeviceInfo[];
   selectedInputId: string;
   selectedOutputId: string;
+  recordedAudioUrl: string | null;
 }>({
   audioCtx: null,
   analyserNode: null,
@@ -36,7 +37,8 @@ export const audioState = $state<{
   micGranted: false,
   devices: [],
   selectedInputId: loadSavedDeviceId(STORAGE_KEY_INPUT),
-  selectedOutputId: loadSavedDeviceId(STORAGE_KEY_OUTPUT)
+  selectedOutputId: loadSavedDeviceId(STORAGE_KEY_OUTPUT),
+  recordedAudioUrl: null
 });
 
 export async function requestMic(deviceIdOrEvent?: string | Event) {
