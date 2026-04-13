@@ -1,6 +1,5 @@
 <script lang="ts">
   import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds } from '$lib/stores/player.svelte';
-  import { onMount } from 'svelte';
   import { scoreState, resetScore } from '$lib/stores/score.svelte';
   import { audioState, playClick } from '$lib/stores/audio.svelte';
   import { midiToFreq, freqToCents, freqToMidi, getGrade, getTimingGrade, getCombinedGrade } from '$lib/utils/pitch';
@@ -46,6 +45,7 @@
         cancelAnimationFrame(animationFrameId);
       };
     } else {
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
       displayBeat = playerState.currentBeat;
     }
   });
@@ -285,6 +285,10 @@
     playerState.status = 'play';
 
     // Set playbackStartTimeMs based on currentBeat
+    // Note: In startPlay, this value represents the theoretical start time of the song
+    // calculated backwards from the current position. This is primarily used to drive
+    // the continuous displayBeat animation. This differs slightly from startRecord
+    // where it strictly anchors the expected timing for grading.
     const secPerBeat = 60 / playerState.song.bpm;
     if (playerState.isFreeMode) {
       playerState.playbackStartTimeMs = performance.now() - (playerState.currentBeat * secPerBeat * 1000);
