@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { parseIRealURI } from './ireal';
+import { parseIRealURI } from '../../src/lib/utils/ireal';
 
 describe('parseIRealURI', () => {
   test('returns null for invalid protocol', () => {
