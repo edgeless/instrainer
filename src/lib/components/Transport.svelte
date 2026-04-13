@@ -76,6 +76,7 @@
         if (playerState.isRecording && scoreState.currentCentsHistory.length > 0) {
           scoreState.recordedSamples.push({
             noteIdx: prevNoteIdx,
+            loopIdx: playerState.currentLoop,
             samples: [...scoreState.currentCentsHistory]
           });
           gradeNote(prevNoteIdx, [...scoreState.currentCentsHistory]);
@@ -214,9 +215,9 @@
       if (playerState.playbackStartTimeMs !== null && validSamples.length > 0) {
         const firstSampleTime = validSamples[0].time;
         // In post analysis, calculate expected time
-        // We will assume loop 1 for simplicity here since recordedSamples doesn't track loops.
-        // If timing is needed for repeated phrases, RecordedSample needs loop index.
-        const expectedNoteTimeMs = playerState.playbackStartTimeMs + (note.beat * (60 / playerState.song.bpm) * 1000);
+        const originalBeats = getOriginalBeats();
+        const loopOffset = (rs.loopIdx - 1) * originalBeats;
+        const expectedNoteTimeMs = playerState.playbackStartTimeMs + ((note.beat + loopOffset) * (60 / playerState.song.bpm) * 1000);
         timingDiffMs = firstSampleTime - expectedNoteTimeMs;
         timingGrade = getTimingGrade(Math.abs(timingDiffMs));
       }
@@ -296,6 +297,7 @@
     } else if (scoreState.currentCentsHistory.length > 0) {
       scoreState.recordedSamples.push({
         noteIdx: playerState.currentNoteIdx,
+        loopIdx: playerState.currentLoop,
         samples: [...scoreState.currentCentsHistory]
       });
       scoreState.currentCentsHistory = [];

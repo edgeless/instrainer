@@ -12,6 +12,7 @@ export type NoteResult = {
 
 export type RecordedSample = {
   noteIdx: number;
+  loopIdx: number;
   samples: { freq: number, isSliding: boolean, time: number }[];
 };
 

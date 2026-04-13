@@ -173,6 +173,6 @@ export function getCombinedGrade(pitchGrade: Grade, timingGrade: Grade): Grade {
   const pitchVal = gradeValue[pitchGrade];
   const timingVal = gradeValue[timingGrade];
 
-  const avg = Math.round((pitchVal + timingVal) / 2);
+  const avg = Math.floor((pitchVal + timingVal) / 2);
   return valueToGrade[avg];
 }
