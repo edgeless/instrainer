@@ -175,14 +175,33 @@ gcloud run deploy fretless-training \
 
 ## テスト
 
-本プロジェクトでは、ロジックの検証に Node.js 互換のテストランナーである **Bun** を使用しています。
+本プロジェクトでは、ロジックの検証（ユニットテスト）に Node.js 互換のテストランナーである **Bun** を、ブラウザでのエンドツーエンド（E2E）テストに **Playwright** を使用しています。
+
+### テストのディレクトリ構造
+- `tests/unit/`: ユーティリティ関数などのユニットテスト（Bunで実行）
+- `tests/e2e/`: ブラウザでの操作をシミュレートするE2Eテスト（Playwrightで実行）
 
 ### テストの実行
-以下のコマンドで、`src/lib/utils/` 以下のテストを実行します：
+
+すべてのテスト（ユニットおよびE2E）を実行するには以下のコマンドを使用します：
 ```bash
-npm test
+npm run test
 ```
 
-### テストの追加
-新しいユーティリティ関数やロジックを追加した際は、`src/lib/utils/*.test.ts` ファイルを作成し、`node:test` および `node:assert` を使用してテストを記述してください。
+個別に実行する場合は以下のコマンドを使用します：
+```bash
+npm run test:unit  # ユニットテストのみ
+npm run test:e2e   # E2Eテストのみ
+```
+
+### 開発環境（Docker）でのテスト実行
+ローカルのNode.js環境を汚さずにクリーンな環境でテストを実行するため、Docker Composeを使用できます。
+
+```bash
+# ユニットテストをコンテナで実行
+docker compose -f compose.test.yaml run unit
+
+# E2Eテストをコンテナで実行
+docker compose -f compose.test.yaml run e2etest
+```
 ```
