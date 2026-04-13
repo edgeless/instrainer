@@ -7,27 +7,42 @@
   }
 
   let graded = $derived(scoreState.noteResults.filter((r) => r && r.grade));
-  let maxScore = $derived(playerState.song.notes.length * 30);
-  let totalScore = $derived(
+  let maxPitchScore = $derived(playerState.song.notes.length * 30);
+  let maxTimingScore = $derived(playerState.song.notes.length * 30);
+
+  let totalPitchScore = $derived(
     scoreState.noteResults.reduce((sum, r) => {
-      if (!r || r.grade === 'miss' || r.avgCents === null) return sum;
+      if (!r || r.pitchGrade === 'miss' || r.avgCents === null) return sum;
       return sum + Math.max(0, 30 - Math.abs(r.avgCents));
     }, 0)
   );
-  let displayScore = $derived(Math.round(totalScore));
-  let scorePercent = $derived(maxScore > 0 ? (totalScore / maxScore) * 100 : 0);
-  let scoreText = $derived(`${displayScore}(${scorePercent.toFixed(1)}%)`);
+
+  let totalTimingScore = $derived(
+    scoreState.noteResults.reduce((sum, r) => {
+      if (!r || r.timingGrade === 'miss' || r.timingDiffMs === null || r.timingDiffMs === undefined) return sum;
+      return sum + Math.max(0, 30 - (Math.abs(r.timingDiffMs) * 30 / 200)); // Map 200ms to 0 points
+    }, 0)
+  );
+
+  let pitchPercent = $derived(maxPitchScore > 0 ? (totalPitchScore / maxPitchScore) * 100 : 0);
+  let timingPercent = $derived(maxTimingScore > 0 ? (totalTimingScore / maxTimingScore) * 100 : 0);
+  let overallPercent = $derived((pitchPercent + timingPercent) / 2);
+  let scoreText = $derived(`${overallPercent.toFixed(1)}%`);
 
   let withCents = $derived(graded.filter((r) => r?.avgCents !== null));
   let avgDev = $derived(withCents.length > 0 ? withCents.reduce((s, r) => s + Math.abs(r!.avgCents as number), 0) / withCents.length : 0);
+
+  let withTiming = $derived(graded.filter((r) => r?.timingDiffMs !== null && r?.timingDiffMs !== undefined));
+  let avgTimingDev = $derived(withTiming.length > 0 ? withTiming.reduce((s, r) => s + Math.abs(r!.timingDiffMs as number), 0) / withTiming.length : 0);
+
   let missCount = $derived(scoreState.noteResults.filter((r) => r && r.grade === 'miss').length);
 
   let gradeLetter = $derived.by(() => {
-    if (scorePercent >= 95 && avgDev < 10) return 'S';
-    if (scorePercent >= 85 && avgDev < 15) return 'A';
-    if (scorePercent >= 75 && avgDev < 20) return 'B+';
-    if (scorePercent >= 65) return 'B';
-    if (scorePercent >= 50) return 'C';
+    if (overallPercent >= 95 && avgDev < 10 && avgTimingDev < 50) return 'S';
+    if (overallPercent >= 85 && avgDev < 15 && avgTimingDev < 100) return 'A';
+    if (overallPercent >= 75 && avgDev < 20) return 'B+';
+    if (overallPercent >= 65) return 'B';
+    if (overallPercent >= 50) return 'C';
     return 'D';
   });
 
@@ -87,22 +102,32 @@
         <div class="rc-num" style="font-size: 56px;">{scoreText}</div>
         <div class="rc-grade">GRADE: {gradeLetter} — {gradeMsg}</div>
       </div>
-      <div class="rc-stats">
+      <div class="rc-stats" style="grid-template-columns: 1fr 1fr; margin-bottom: 8px;">
         <div class="rc-stat">
-          <div class="rc-sv" style="color:var(--accent2)">{scorePercent.toFixed(1)}%</div>
-          <div class="rc-sl">ACCURACY</div>
+          <div class="rc-sv" style="color:var(--accent2)">{pitchPercent.toFixed(1)}%</div>
+          <div class="rc-sl">PITCH ACCURACY</div>
         </div>
         <div class="rc-stat">
+          <div class="rc-sv" style="color:var(--accent)">{timingPercent.toFixed(1)}%</div>
+          <div class="rc-sl">TIMING ACCURACY</div>
+        </div>
+      </div>
+      <div class="rc-stats">
+        <div class="rc-stat">
           <div class="rc-sv" style="color:var(--warn)">±{Math.round(avgDev)}¢</div>
-          <div class="rc-sl">AVG DEV</div>
+          <div class="rc-sl">AVG PITCH DEV</div>
+        </div>
+        <div class="rc-stat">
+          <div class="rc-sv" style="color:var(--warn)">±{Math.round(avgTimingDev)}ms</div>
+          <div class="rc-sl">AVG TIMING DEV</div>
         </div>
         <div class="rc-stat">
           <div class="rc-sv" style="color:var(--danger)">{missCount}</div>
-          <div class="rc-sl">MISSED</div>
+          <div class="rc-sl">MISSED NOTES</div>
         </div>
       </div>
       <div class="rc-breakdown">
-        <div class="rc-blbl">NOTE INTONATION BREAKDOWN</div>
+        <div class="rc-blbl">NOTE BREAKDOWN (PITCH & TIMING)</div>
         <div>
           {#if playerState.song.notes.length > 0}
             {#each playerState.song.notes as note, i}
@@ -112,10 +137,13 @@
                 {@const pct = Math.max(5, Math.min(100, 100 - abs * 1.5))}
                 {@const col = r.grade === 'perfect' ? 'var(--accent2)' : r.grade === 'good' ? 'var(--accent)' : r.grade === 'ok' ? 'var(--warn)' : 'var(--danger)'}
                 {@const sign = r.avgCents > 0 ? '+' : ''}
+                {@const tDiff = r.timingDiffMs ?? 0}
+                {@const tSign = tDiff > 0 ? '+' : ''}
                 <div class="rc-brow">
                   <span class="rc-bnote">{note.name}</span>
                   <div class="rc-bbar"><div class="rc-bfill" style="width:{pct}%;background:{col}"></div></div>
                   <span class="rc-bcent" style="color:{col}">{sign}{Math.round(r.avgCents)}¢</span>
+                  <span class="rc-bcent" style="color:var(--muted);width:60px;">{tSign}{Math.round(tDiff)}ms</span>
                 </div>
               {/if}
             {/each}

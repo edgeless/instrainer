@@ -15,6 +15,7 @@ interface PlayerState {
   currentLoop: number;
   importedSong: Song | null;
   isFreeMode: boolean;
+  playbackStartTimeMs: number | null;
 }
 
 // 初期化時に localStorage からインポート曲を読み込む
@@ -44,6 +45,7 @@ export const playerState = $state<PlayerState>({
   currentLoop: 1,
   importedSong: initialImported,
   isFreeMode: false,
+  playbackStartTimeMs: null,
 });
 
 export function setSong(arg: string | Song) {

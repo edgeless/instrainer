@@ -1,20 +1,24 @@
 import type { Grade } from '$lib/utils/pitch';
 
 export type NoteResult = {
-  grade: Grade;
+  grade: Grade; // For backward compatibility/simplicity, this can be the combined grade or pitch grade
+  combinedGrade?: Grade;
+  pitchGrade?: Grade;
+  timingGrade?: Grade;
   avgCents: number | null;
+  timingDiffMs?: number | null;
   rawCents?: number[];
 };
 
 export type RecordedSample = {
   noteIdx: number;
-  samples: { freq: number, isSliding: boolean }[];
+  samples: { freq: number, isSliding: boolean, time: number }[];
 };
 
 export const scoreState = $state<{
   noteResults: (NoteResult | null)[];
   recordedSamples: RecordedSample[];
-  currentCentsHistory: { freq: number, isSliding: boolean }[];
+  currentCentsHistory: { freq: number, isSliding: boolean, time: number }[];
   showResultOverlay: boolean;
   isSliding: boolean;
   detectedFreq: number;
