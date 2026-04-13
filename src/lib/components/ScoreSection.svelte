@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { playerState, getOriginalBeats } from '$lib/stores/player.svelte';
+  import { playerState, getOriginalBeats, getDisplayBeat } from '$lib/stores/player.svelte';
   import { escapeHtml } from '$lib/utils/security';
   
   let viewMode = $state('both');
@@ -34,10 +34,13 @@
 
   $effect(() => {
     void playerState.currentSongKey;
-    // We intentionally removed isPlaying, isRecording, and currentBeat from triggering renderScore.
-    // Instead, they will be handled by the new smooth cursor animation loop.
-    // However, if the currentNoteIdx changes and we need to update note colors,
+    // We intentionally removed currentBeat from triggering renderScore.
+    // Instead, it is handled by the new smooth cursor animation loop.
+    // However, if the currentNoteIdx changes, or playback state changes
+    // (which might affect current/upcoming note colors when pausing),
     // we still need to trigger renderScore.
+    void playerState.isPlaying;
+    void playerState.isRecording;
     void playerState.currentNoteIdx;
     requestAnimationFrame(renderScore);
   });
@@ -394,20 +397,7 @@
         const cursorEl = scoreContainer.querySelector('#score-cursor') as HTMLElement;
         if (!cursorEl) return;
 
-        let displayBeat = playerState.currentBeat;
-        if (playerState.playbackStartTimeMs !== null) {
-          const now = performance.now();
-          const elapsedMs = now - playerState.playbackStartTimeMs;
-          const secPerBeat = 60 / playerState.song.bpm;
-          if (playerState.isFreeMode) {
-             displayBeat = elapsedMs / (secPerBeat * 1000);
-          } else {
-             // TODO: 4拍固定になっているため、4/4拍子以外(3/4等)では不整合が起きる。
-             // 今後 playerState.song.timeSignature[0] を参照するよう修正が必要。
-             displayBeat = (elapsedMs / (secPerBeat * 1000)) - 4; // offset by 4 for count-in
-          }
-        }
-
+        const displayBeat = getDisplayBeat();
         const originalBeats = getOriginalBeats();
         // Ignore negative beats (count-in)
         if (displayBeat < 0 || activeLayouts.length === 0 || originalBeats === 0) {
@@ -462,8 +452,12 @@
               x = leftX;
             }
 
-            const rowTop = rowEl.offsetTop;
-            const rowHeight = rowEl.offsetHeight;
+            const rowRect = rowEl.getBoundingClientRect();
+            const containerRect = scoreContainer.getBoundingClientRect();
+
+            // Calculate robust relative top offset
+            const rowTop = rowRect.top - containerRect.top + scoreContainer.scrollTop;
+            const rowHeight = rowRect.height;
 
             cursorEl.style.display = 'block';
             cursorEl.style.left = `${x}px`;
@@ -581,7 +575,6 @@
   pointer-events: none;
   z-index: 10;
   display: none;
-  transition: opacity 0.1s;
 }
 
 :global(.tab-area-wrap) {
