@@ -17,7 +17,7 @@ AIコーディングエージェント向けの文書です。このドキュメ
   - `PitchMonitor.svelte`: ピッチと波形をリアルタイムで可視化。
   - `ScoreSection.svelte`: 五線譜・タブ譜の描画。4小節/行の多段表示に対応し、「両方」モードでは五線譜行とタブ譜行を交互に配置する。`buildStaffRows()` / `buildTabRows()` が行ごとのHTML文字列配列を返し、`renderScore()` が viewMode に応じて合成する。リピート中（`repeatCount > 1`）は右上にループインジケーター（n/m）を表示する。
   - `ScorePanel.svelte`: セッションスコア（正確度・偏差）とノート履歴ドットの表示。リピート時は最後に演奏した周回の結果を表示する。
-  - `Transport.svelte`: 再生コントロール。
+  - `Transport.svelte`: 再生コントロール。`requestAnimationFrame` を用いた連続的な進捗バーアニメーション、および絶対時間ベースの `setTimeout` スケジューリングによるビートのドリフト補正を実装している。再生時の基準時刻は `playerState.playbackStartTimeMs` に保持する。
   - `FreeScoreArea.svelte`: フリー採点モード時の中央表示エリア。音名表示をリアルタイムで行う。
   - `FreeScorePanel.svelte`: フリー採点モード時の統計パネル（平均偏差、安定度など）。
 - **ストア・状態 (`src/lib/stores`)**: `$state`を利用したクラスやクロージャを含む `.svelte.ts` ファイルを使用します。
@@ -40,6 +40,7 @@ AIコーディングエージェント向けの文書です。このドキュメ
 ## 5. UI/UX ルール
 - プレミアムでモダンな外観を持つ、ダークモードに適したレスポンシブなUIを維持・優先してください。
 - BPMやスコアなどのリアルタイムデータを動的に更新する際、レイアウトシフト（配置のズレ）が発生しない構造を心がけてください。
+- **アニメーション**: 進捗バーなどUIアニメーションを実装・更新する際は、`requestAnimationFrame` を用いて連続的・滑らかに描画するアプローチを使用してください。CSS `transition` との併用は二重アニメーションが発生するため避け、どちらか一方に統一してください。
 
 ## 6. 音程表記・記譜法のルール
 - 楽曲データ(`src/lib/utils/songs/` 内のJSONファイル)および譜面描画(`ScoreSection.svelte`)におけるオクターブ表記は、科学的ピッチ記法(SPN)形の実音ではなく、**ベースの一般的な記譜（Written Pitch）** を基準とします。
@@ -194,5 +195,3 @@ docker compose -f compose.test.yaml run unit
 docker compose -f compose.test.yaml run e2etest
 ```
 
-## アニメーションの更新
-UIアニメーション（特に進捗バーなど）を更新する際は、requestAnimationFrameを用いて連続的かつ滑らかに描画するアプローチを検討してください。
