@@ -1,5 +1,6 @@
 <script lang="ts">
   import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds } from '$lib/stores/player.svelte';
+  import { onMount } from 'svelte';
   import { scoreState, resetScore } from '$lib/stores/score.svelte';
   import { audioState, playClick } from '$lib/stores/audio.svelte';
   import { midiToFreq, freqToCents, freqToMidi, getGrade, getTimingGrade, getCombinedGrade } from '$lib/utils/pitch';
@@ -14,14 +15,49 @@
     return `${isNeg ? '-' : ''}${m}:${s.toString().padStart(2, '0')}`;
   }
 
+
+  // Display beat for continuous progress
+  let displayBeat = $state(0);
+  let animationFrameId: number;
+
+  $effect(() => {
+    if (playerState.isPlaying || playerState.isRecording) {
+      function updateDisplay() {
+        if (playerState.playbackStartTimeMs !== null) {
+          const now = performance.now();
+          const elapsedMs = now - playerState.playbackStartTimeMs;
+          const secPerBeat = 60 / playerState.song.bpm;
+          let newDisplayBeat;
+          if (playerState.isFreeMode) {
+             newDisplayBeat = elapsedMs / (secPerBeat * 1000);
+          } else {
+             newDisplayBeat = (elapsedMs / (secPerBeat * 1000)) - 4; // offset by 4 for count-in
+          }
+
+          displayBeat = newDisplayBeat;
+        } else {
+          displayBeat = playerState.currentBeat;
+        }
+        animationFrameId = requestAnimationFrame(updateDisplay);
+      }
+      animationFrameId = requestAnimationFrame(updateDisplay);
+
+      return () => {
+        cancelAnimationFrame(animationFrameId);
+      };
+    } else {
+      displayBeat = playerState.currentBeat;
+    }
+  });
+
   // Derived progress values
   let progressPct = $derived(
-    getTotalBeats() ? (playerState.currentBeat / getTotalBeats()) * 100 : 0
+    getTotalBeats() ? (displayBeat / getTotalBeats()) * 100 : 0
   );
   let posSec = $derived(
     playerState.isFreeMode
-      ? (playerState.currentBeat < 0 ? 0 : (playerState.currentBeat / playerState.song.bpm) * 60) // フリーモード時も song.bpm に合わせる (tick と整合性を取る)
-      : (playerState.currentBeat / playerState.song.bpm) * 60
+      ? (displayBeat < 0 ? 0 : (displayBeat / playerState.song.bpm) * 60) // フリーモード時も song.bpm に合わせる (tick と整合性を取る)
+      : (displayBeat / playerState.song.bpm) * 60
   );
 
   function scheduleBeat() {
@@ -86,7 +122,22 @@
       }
 
       playerState.currentBeat++;
-      beatInterval = setTimeout(tick, secPerBeat * 1000);
+
+      // Calculate absolute time for next beat to prevent timing drift
+      if (playerState.playbackStartTimeMs !== null) {
+        let expectedNextBeatTimeMs;
+        if (playerState.isFreeMode) {
+          expectedNextBeatTimeMs = playerState.playbackStartTimeMs + (playerState.currentBeat * secPerBeat * 1000);
+        } else {
+          expectedNextBeatTimeMs = playerState.playbackStartTimeMs + ((playerState.currentBeat + 4) * secPerBeat * 1000);
+        }
+
+        const now = performance.now();
+        const delayMs = Math.max(0, expectedNextBeatTimeMs - now);
+        beatInterval = setTimeout(tick, delayMs);
+      } else {
+        beatInterval = setTimeout(tick, secPerBeat * 1000);
+      }
     }
     tick();
   }
@@ -232,6 +283,15 @@
     if (!audioState.audioCtx) return;
     playerState.isPlaying = true;
     playerState.status = 'play';
+
+    // Set playbackStartTimeMs based on currentBeat
+    const secPerBeat = 60 / playerState.song.bpm;
+    if (playerState.isFreeMode) {
+      playerState.playbackStartTimeMs = performance.now() - (playerState.currentBeat * secPerBeat * 1000);
+    } else {
+      playerState.playbackStartTimeMs = performance.now() - ((playerState.currentBeat + 4) * secPerBeat * 1000);
+    }
+
     scheduleBeat();
   }
 
@@ -322,6 +382,16 @@
     const targetBeat = Math.floor(pct * totalBeats);
     playerState.currentBeat = targetBeat;
 
+    // Update playbackStartTimeMs if we are playing or recording
+    if (playerState.isPlaying || playerState.isRecording) {
+      const secPerBeat = 60 / playerState.song.bpm;
+      if (playerState.isFreeMode) {
+        playerState.playbackStartTimeMs = performance.now() - (targetBeat * secPerBeat * 1000);
+      } else {
+        playerState.playbackStartTimeMs = performance.now() - ((targetBeat + 4) * secPerBeat * 1000);
+      }
+    }
+
     // リピート時のループ番号とループ内ビート位置を計算
     if (originalBeats > 0) {
       playerState.currentLoop = Math.floor(targetBeat / originalBeats) + 1;
@@ -410,7 +480,7 @@
 #progFill {
   height: 100%; border-radius: 2px;
   background: linear-gradient(90deg, var(--accent2), var(--accent));
-  position: relative; transition: width 0.1s linear;
+  position: relative;
 }
 #progFill::after { content:''; position:absolute; right:-5px; top:-3px; width:10px; height:10px; border-radius:50%; background:var(--accent); box-shadow:0 0 6px var(--accent); }
 

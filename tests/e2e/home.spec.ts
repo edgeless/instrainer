@@ -16,3 +16,23 @@ test('loads the app and shows main layout elements', async ({ page }) => {
   // Check if the transport component is visible (it's a div, not a footer)
   await expect(page.locator('div.transport').first()).toBeVisible();
 });
+
+
+test('transport components are correctly rendered and accessible', async ({ page }) => {
+  await page.goto('/');
+
+  // dismiss overlay
+  const dismissBtn = page.locator("button:has-text('マイク')");
+  if (await dismissBtn.isVisible()) {
+    await dismissBtn.click();
+  }
+
+  // Check the initial state of the progress bar track
+  const progFill = page.locator('#progFill');
+  await expect(progFill).toBeAttached();
+
+  // ensure the transport buttons are present
+  await expect(page.locator(".tbtn:has-text('▶')")).toBeVisible();
+  await expect(page.locator(".tbtn:has-text('⏺')")).toBeVisible();
+  await expect(page.locator(".tbtn[title='停止']")).toBeVisible();
+});
