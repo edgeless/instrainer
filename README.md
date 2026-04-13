@@ -205,3 +205,6 @@ docker compose -f compose.test.yaml run unit
 docker compose -f compose.test.yaml run e2etest
 ```
 ```
+
+## 進捗バーの連続アニメーション
+進捗バーのアニメーションは、requestAnimationFrame を用いてピクセル単位で滑らかに更新されるように改善されました。

@@ -193,3 +193,6 @@ npm run test       # 両方を実行
 docker compose -f compose.test.yaml run unit
 docker compose -f compose.test.yaml run e2etest
 ```
+
+## アニメーションの更新
+UIアニメーション（特に進捗バーなど）を更新する際は、requestAnimationFrameを用いて連続的かつ滑らかに描画するアプローチを検討してください。
