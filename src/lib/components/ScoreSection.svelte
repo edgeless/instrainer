@@ -385,7 +385,7 @@
   });
 
   // Smooth cursor animation
-  let animationFrameId: number;
+  let animationFrameId: number = 0;
 
   $effect(() => {
     if (playerState.isPlaying || playerState.isRecording) {
@@ -402,6 +402,8 @@
           if (playerState.isFreeMode) {
              displayBeat = elapsedMs / (secPerBeat * 1000);
           } else {
+             // TODO: 4拍固定になっているため、4/4拍子以外(3/4等)では不整合が起きる。
+             // 今後 playerState.song.timeSignature[0] を参照するよう修正が必要。
              displayBeat = (elapsedMs / (secPerBeat * 1000)) - 4; // offset by 4 for count-in
           }
         }
@@ -435,8 +437,6 @@
             let x = layout.startX; // default fallback
 
             // elements are already sorted by beat
-            let leftEl = null;
-            let rightEl = null;
             let leftX = layout.startX;
             let rightX = layout.endX;
             let leftBeat = layout.rowStartBeat;
@@ -444,11 +444,9 @@
 
             for (let i = 0; i < layout.elements.length; i++) {
               if (layout.elements[i].beat <= beatInLoop) {
-                leftEl = layout.elements[i];
                 leftX = layout.elPositions[i];
                 leftBeat = layout.elements[i].beat;
               } else {
-                rightEl = layout.elements[i];
                 rightX = layout.elPositions[i];
                 rightBeat = layout.elements[i].beat;
                 break;
