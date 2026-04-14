@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds } from '$lib/stores/player.svelte';
+  import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds, getDisplayBeat } from '$lib/stores/player.svelte';
   import { scoreState, resetScore } from '$lib/stores/score.svelte';
   import { audioState, playClick } from '$lib/stores/audio.svelte';
   import { midiToFreq, freqToCents, freqToMidi, getGrade, getTimingGrade, getCombinedGrade } from '$lib/utils/pitch';
@@ -22,21 +22,7 @@
   $effect(() => {
     if (playerState.isPlaying || playerState.isRecording) {
       function updateDisplay() {
-        if (playerState.playbackStartTimeMs !== null) {
-          const now = performance.now();
-          const elapsedMs = now - playerState.playbackStartTimeMs;
-          const secPerBeat = 60 / playerState.song.bpm;
-          let newDisplayBeat;
-          if (playerState.isFreeMode) {
-             newDisplayBeat = elapsedMs / (secPerBeat * 1000);
-          } else {
-             newDisplayBeat = (elapsedMs / (secPerBeat * 1000)) - 4; // offset by 4 for count-in
-          }
-
-          displayBeat = newDisplayBeat;
-        } else {
-          displayBeat = playerState.currentBeat;
-        }
+        displayBeat = getDisplayBeat();
         animationFrameId = requestAnimationFrame(updateDisplay);
       }
       animationFrameId = requestAnimationFrame(updateDisplay);
@@ -46,7 +32,7 @@
       };
     } else {
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
-      displayBeat = playerState.currentBeat;
+      displayBeat = getDisplayBeat();
     }
   });
 
