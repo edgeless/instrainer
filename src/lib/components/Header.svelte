@@ -4,6 +4,8 @@
   import { SONGS } from '$lib/utils/songs';
   import { parseIRealURI } from '$lib/utils/ireal';
 
+  let { transportRef } = $props<{ transportRef: any }>();
+
   function onSongChange(e: Event) {
     const select = e.target as HTMLSelectElement;
     setSong(select.value);
@@ -69,6 +71,12 @@
 
   let audioInputs = $derived(audioState.devices.filter(d => d.kind === 'audioinput'));
   let audioOutputs = $derived(audioState.devices.filter(d => d.kind === 'audiooutput'));
+
+  function onDemoToggle() {
+    if (transportRef && typeof transportRef.toggleDemoPlay === 'function') {
+      transportRef.toggleDemoPlay();
+    }
+  }
 </script>
 
 <header>
@@ -97,6 +105,14 @@
           <option value="imported">✨ {playerState.importedSong.name}</option>
         {/if}
       </select>
+      <button
+        class="btn-demo {playerState.isDemoPlaying ? 'active' : ''}"
+        onclick={onDemoToggle}
+        disabled={playerState.isFreeMode || (playerState.isPlaying && !playerState.isDemoPlaying) || playerState.isRecording}
+        title="デモ再生"
+      >
+        {playerState.isDemoPlaying ? '⏹ STOP' : '▶ DEMO'}
+      </button>
       <button class="btn-import" onclick={onImportIReal} title={i18n.importTitle} disabled={playerState.isFreeMode}>
         IRB
       </button>
@@ -136,6 +152,15 @@ header {
 .header-right { display: flex; align-items: center; gap: 12px; }
 
 .song-box { display: flex; align-items: center; gap: 12px; }
+.btn-demo {
+  background: var(--panel2); color: var(--accent); border: 1px solid var(--border); padding: 6px 10px; border-radius: 4px;
+  font-family: 'Bebas Neue', sans-serif; font-size: 14px; cursor: pointer; transition: all 0.2s;
+  height: 30px; display: flex; align-items: center; justify-content: center; min-width: 65px;
+}
+.btn-demo:hover { border-color: var(--accent); background: rgba(200,245,58,0.1); }
+.btn-demo.active { background: var(--accent); color: #000; }
+.btn-demo:disabled { opacity: 0.5; cursor: not-allowed; border-color: var(--border); background: var(--panel2); color: var(--muted); }
+
 .btn-import { 
   background: var(--accent); color: #000; border: none; padding: 6px 8px; border-radius: 4px;
   font-family: 'Bebas Neue', sans-serif; font-size: 14px; cursor: pointer; transition: all 0.2s;

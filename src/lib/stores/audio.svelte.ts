@@ -142,3 +142,38 @@ export function playClick(accent: boolean) {
   osc.start(time);
   osc.stop(time + 0.06);
 }
+
+export function playDemoNote(midi: number, durationSec: number) {
+  const ac = audioState.audioCtx;
+  if (!ac) return;
+
+  const time = ac.currentTime;
+  const freq = 440 * Math.pow(2, (midi - 69) / 12);
+
+  const osc = ac.createOscillator();
+  const gain = ac.createGain();
+
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+
+  osc.connect(gain);
+  gain.connect(ac.destination);
+
+  // Attack, Decay, Sustain, Release (ADSR) envelope for a somewhat musical sound
+  const attackTime = 0.02;
+  const releaseTime = 0.05;
+  const maxGain = 0.5;
+
+  gain.gain.setValueAtTime(0, time);
+  gain.gain.linearRampToValueAtTime(maxGain, time + attackTime);
+
+  // Slight decay
+  gain.gain.exponentialRampToValueAtTime(maxGain * 0.8, time + attackTime + 0.1);
+
+  // Release
+  gain.gain.setValueAtTime(maxGain * 0.8, time + durationSec - releaseTime);
+  gain.gain.linearRampToValueAtTime(0.001, time + durationSec);
+
+  osc.start(time);
+  osc.stop(time + durationSec + 0.1); // add a little buffer for release
+}

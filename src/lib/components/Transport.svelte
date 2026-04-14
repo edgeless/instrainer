@@ -2,7 +2,7 @@
   import { onDestroy } from 'svelte';
   import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds, getDisplayBeat } from '$lib/stores/player.svelte';
   import { scoreState, resetScore } from '$lib/stores/score.svelte';
-  import { audioState, playClick } from '$lib/stores/audio.svelte';
+  import { audioState, playClick, playDemoNote } from '$lib/stores/audio.svelte';
   import { midiToFreq, freqToCents, freqToMidi, getGrade, getTimingGrade, getCombinedGrade } from '$lib/utils/pitch';
 
   let beatInterval: any = null;
@@ -118,6 +118,15 @@
           scoreState.currentCentsHistory = [];
         }
         playerState.currentNoteIdx = targetNoteIdx;
+      }
+
+      // Play demo note if needed
+      if (playerState.isDemoPlaying && !isFree && playerState.currentBeat >= 0) {
+        const note = playerState.song.notes[playerState.currentNoteIdx];
+        if (note && note.beat === beatInLoop) {
+          const durationSec = note.dur * (60 / playerState.song.bpm);
+          playDemoNote(note.midi, durationSec);
+        }
       }
 
       playerState.currentBeat++;
@@ -361,6 +370,7 @@
   export function stopAll() {
     playerState.isPlaying = false;
     playerState.isRecording = false;
+    playerState.isDemoPlaying = false;
     if (beatInterval) clearTimeout(beatInterval);
     playerState.currentNoteIdx = 0;
     playerState.currentBeat = -4;
@@ -381,12 +391,24 @@
   }
 
   function togglePlay() {
-    if (playerState.isRecording) return;
+    if (playerState.isRecording || playerState.isDemoPlaying) return;
     if (playerState.isPlaying) pausePlay();
     else startPlay();
   }
 
+  export function toggleDemoPlay() {
+    if (playerState.isRecording || (playerState.isPlaying && !playerState.isDemoPlaying)) return;
+    if (playerState.isDemoPlaying) {
+      playerState.isDemoPlaying = false;
+      pausePlay();
+    } else {
+      playerState.isDemoPlaying = true;
+      startPlay();
+    }
+  }
+
   async function toggleRecord() {
+    if (playerState.isDemoPlaying) return;
     if (playerState.isRecording) {
       try {
         await stopRecord();
@@ -532,11 +554,11 @@
 
 <div class="transport">
   <button class="tbtn" title="先頭に戻る" onclick={seekStart}>⏮</button>
-  <button class="tbtn with-text" title="再生 (評価なしの練習モード)" onclick={togglePlay}>
+  <button class="tbtn with-text" title="再生 (評価なしの練習モード)" onclick={togglePlay} disabled={playerState.isDemoPlaying}>
     <span class="icon">{playerState.isPlaying && !playerState.isRecording ? '⏸' : '▶'}</span>
     <span class="lbl">{playerState.isPlaying && !playerState.isRecording ? '一時停止' : '再生'}</span>
   </button>
-  <button class="tbtn rec with-text {playerState.isRecording ? 'on' : ''}" title="録音 (採点・記録モード)" onclick={toggleRecord}>
+  <button class="tbtn rec with-text {playerState.isRecording ? 'on' : ''}" title="録音 (採点・記録モード)" onclick={toggleRecord} disabled={playerState.isDemoPlaying}>
     <span class="icon">⏺</span>
     <span class="lbl">録音</span>
   </button>
