@@ -31,6 +31,10 @@ test('transport components are correctly rendered and accessible', async ({ page
   const progFill = page.locator('#progFill');
   await expect(progFill).toBeAttached();
 
+  // ensure smooth cursor is rendered and initially hidden or present in DOM
+  const cursor = page.locator('#score-cursor');
+  await expect(cursor).toBeAttached();
+
   // ensure the transport buttons are present
   await expect(page.locator(".tbtn:has-text('再生')")).toBeVisible();
   await expect(page.locator(".tbtn:has-text('録音')")).toBeVisible();

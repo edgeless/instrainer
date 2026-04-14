@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { playerState, getOriginalBeats } from '$lib/stores/player.svelte';
+  import { playerState, getOriginalBeats, getDisplayBeat } from '$lib/stores/player.svelte';
   import { escapeHtml } from '$lib/utils/security';
   
   let viewMode = $state('both');
@@ -28,11 +28,20 @@
   // 単一の出力先コンテナ
   let scoreContainer: HTMLDivElement | undefined = $state();
 
+  // 行のレイアウト情報を保存。
+  // 注意: renderScore() のみで更新され、updateCursor() からは読み取り専用として扱われます。
+  type RowLayout = ReturnType<typeof getRowLayout>;
+  let activeLayouts: RowLayout[] = [];
+
   $effect(() => {
     void playerState.currentSongKey;
+    // We intentionally removed currentBeat from triggering renderScore.
+    // Instead, it is handled by the new smooth cursor animation loop.
+    // However, if the currentNoteIdx changes, or playback state changes
+    // (which might affect current/upcoming note colors when pausing),
+    // we still need to trigger renderScore.
     void playerState.isPlaying;
     void playerState.isRecording;
-    void playerState.currentBeat;
     void playerState.currentNoteIdx;
     requestAnimationFrame(renderScore);
   });
@@ -50,27 +59,41 @@
     const tabRows = buildTabRows(W);
     const totalRows = Math.max(staffRows.length, tabRows.length);
 
+    // Save layouts for cursor calculation
+    activeLayouts = [];
+    for (let row = 0; row < totalRows; row++) {
+      activeLayouts.push(getRowLayout(W, row));
+    }
+
     let html = '';
 
     if (viewMode === 'staff') {
-      staffRows.forEach(r => { html += r; });
+      staffRows.forEach((r, i) => {
+        html += `<div id="score-row-${i}" style="position:relative;">${r}</div>`;
+      });
 
     } else if (viewMode === 'tab') {
       html += `<div class="tab-area-wrap">`;
-      tabRows.forEach(r => { html += r; });
+      tabRows.forEach((r, i) => {
+        html += `<div id="score-row-${i}" style="position:relative;">${r}</div>`;
+      });
       html += `</div>`;
 
     } else {
       // 'both': 五線譜行 → タブ譜行 を行ごとに交互
       for (let row = 0; row < totalRows; row++) {
+        html += `<div id="score-row-${row}" style="position:relative;">`;
         if (staffRows[row]) html += staffRows[row];
         if (tabRows[row]) {
           html += `<div class="tab-area-wrap tab-inrow">`;
           html += tabRows[row];
           html += `</div>`;
         }
+        html += `</div>`;
       }
     }
+
+    html += `<div id="score-cursor" class="score-cursor"></div>`;
 
     scoreContainer.innerHTML = html;
   }
@@ -294,15 +317,6 @@
           html += `<circle cx="${x}" cy="${y}" r="11" fill="none" stroke="${col}" stroke-width="1.5" opacity="0.4"/>`;
       });
 
-      // カーソル
-      if (playerState.isPlaying || playerState.isRecording) {
-        const curNoteIdx = playerState.currentNoteIdx;
-        const curX = nodeLayoutMap.get(curNoteIdx);
-        if (curX !== undefined) {
-          html += `<line x1="${curX - 14}" y1="${staffTop - 8}" x2="${curX - 14}" y2="${staffTop + staffH + 8}" stroke="#c8f53a" stroke-width="1.5" opacity="0.8"/>`;
-        }
-      }
-
       rows.push(`<svg viewBox="0 0 ${W} ${rowH}" width="${W}" height="${rowH}" style="display:block;margin-bottom:4px;">${html}</svg>`);
     }
 
@@ -373,6 +387,123 @@
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   });
+
+  // Smooth cursor animation
+  let animationFrameId: number = 0;
+
+  $effect(() => {
+    if (playerState.isPlaying || playerState.isRecording) {
+      function updateCursor() {
+        if (!scoreContainer) return;
+        const cursorEl = scoreContainer.querySelector('#score-cursor') as HTMLElement;
+        if (!cursorEl) return;
+
+        const displayBeat = getDisplayBeat();
+        const originalBeats = getOriginalBeats();
+        // Ignore negative beats (count-in)
+        if (displayBeat < 0 || activeLayouts.length === 0 || originalBeats === 0) {
+          cursorEl.style.display = 'none';
+          animationFrameId = requestAnimationFrame(updateCursor);
+          return;
+        }
+
+        // Handle looping correctly
+        const beatInLoop = displayBeat % originalBeats;
+
+        // Find which row this beat belongs to
+        let targetRowIdx = -1;
+        for (let i = 0; i < activeLayouts.length; i++) {
+          const isLastRow = i === activeLayouts.length - 1;
+          if (beatInLoop >= activeLayouts[i].rowStartBeat &&
+              (beatInLoop < activeLayouts[i].rowEndBeat || (isLastRow && beatInLoop <= activeLayouts[i].rowEndBeat))) {
+            targetRowIdx = i;
+            break;
+          }
+        }
+
+        if (targetRowIdx !== -1) {
+          const layout = activeLayouts[targetRowIdx];
+          const rowEl = scoreContainer.querySelector(`#score-row-${targetRowIdx}`) as HTMLElement;
+
+          if (rowEl) {
+            // Find bounding X
+            let x = layout.startX; // default fallback
+
+            // elements are already sorted by beat
+            let leftX = layout.startX;
+            let rightX = layout.endX;
+            let leftBeat = layout.rowStartBeat;
+            let rightBeat = layout.rowEndBeat;
+
+            for (let i = 0; i < layout.elements.length; i++) {
+              if (layout.elements[i].beat <= beatInLoop) {
+                leftX = layout.elPositions[i];
+                leftBeat = layout.elements[i].beat;
+              } else {
+                rightX = layout.elPositions[i];
+                rightBeat = layout.elements[i].beat;
+                break;
+              }
+            }
+
+            // Interpolate position
+            const beatDiff = rightBeat - leftBeat;
+            if (beatDiff > 0) {
+              const progress = (beatInLoop - leftBeat) / beatDiff;
+              x = leftX + (rightX - leftX) * progress;
+            } else {
+              x = leftX;
+            }
+
+            const rowRect = rowEl.getBoundingClientRect();
+            const containerRect = scoreContainer.getBoundingClientRect();
+
+            // Calculate robust relative top offset
+            const rowTop = rowRect.top - containerRect.top + scoreContainer.scrollTop;
+            const rowHeight = rowRect.height;
+
+            cursorEl.style.display = 'block';
+            cursorEl.style.left = `${x}px`;
+
+            // Handle viewMode padding and positioning visually
+            if (viewMode === 'staff') {
+              cursorEl.style.top = `${rowTop + 20}px`;
+              cursorEl.style.height = `${rowHeight - 65}px`;
+            } else if (viewMode === 'tab') {
+              cursorEl.style.top = `${rowTop + 20}px`;
+              cursorEl.style.height = `${rowHeight - 20}px`;
+            } else {
+              cursorEl.style.top = `${rowTop + 20}px`;
+              cursorEl.style.height = `${rowHeight - 40}px`;
+            }
+          }
+        } else {
+          cursorEl.style.display = 'none';
+        }
+
+        animationFrameId = requestAnimationFrame(updateCursor);
+      }
+      animationFrameId = requestAnimationFrame(updateCursor);
+
+      return () => {
+        cancelAnimationFrame(animationFrameId);
+      };
+    } else {
+      // Not playing, ensure cursor matches current static position if possible, or hide it
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      if (scoreContainer) {
+        const cursorEl = scoreContainer.querySelector('#score-cursor') as HTMLElement;
+        if (cursorEl) {
+           // We can keep it hidden when paused, or optionally position it statically
+           // For now, let's just hide it when not playing since the highlight does the job,
+           // or we can implement static positioning.
+           // Since the original cursor was only shown if (isPlaying || isRecording),
+           // we'll maintain that logic and hide it.
+           cursorEl.style.display = 'none';
+        }
+      }
+    }
+  });
 </script>
 
 <section class="score-section">
@@ -436,7 +567,18 @@
   position: relative;
 }
 
-.score-container { width: 100%; }
+.score-container { width: 100%; position: relative; }
+
+:global(.score-cursor) {
+  position: absolute;
+  width: 2px;
+  background-color: #c8f53a;
+  box-shadow: 0 0 8px #c8f53a;
+  opacity: 0.8;
+  pointer-events: none;
+  z-index: 10;
+  display: none;
+}
 
 :global(.tab-area-wrap) {
   font-family: 'Space Mono', monospace;

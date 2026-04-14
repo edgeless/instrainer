@@ -89,3 +89,30 @@ export function getTotalDurationSeconds() {
   const totalBeats = getTotalBeats();
   return (totalBeats / playerState.song.bpm) * 60;
 }
+
+/**
+ * 現在の再生時間から表示用のビート位置を計算して返す。
+ * 再生中でない場合は現在のビート位置を返す。
+ *
+ * 注意：この関数は呼び出し時点の `performance.now()` に基づくスナップショットを返すため、
+ * Svelte の `$derived` や `$effect` でリアクティブな値として使用しないこと。
+ * 毎フレーム更新が必要な場合は `requestAnimationFrame` ループ内で呼び出すこと。
+ */
+export function getDisplayBeat() {
+  if (playerState.isPlaying || playerState.isRecording) {
+    if (playerState.playbackStartTimeMs !== null) {
+      const now = performance.now();
+      const elapsedMs = now - playerState.playbackStartTimeMs;
+      const secPerBeat = 60 / playerState.song.bpm;
+
+      if (playerState.isFreeMode) {
+        return elapsedMs / (secPerBeat * 1000);
+      } else {
+        // TODO: 4拍固定になっているため、4/4拍子以外(3/4等)では不整合が起きる。
+        // 今後 playerState.song.timeSignature[0] を参照するよう修正が必要。
+        return (elapsedMs / (secPerBeat * 1000)) - 4; // offset by 4 for count-in
+      }
+    }
+  }
+  return playerState.currentBeat;
+}
