@@ -26,6 +26,7 @@ export const audioState = $state<{
   devices: MediaDeviceInfo[];
   selectedInputId: string;
   selectedOutputId: string;
+  recordedAudioUrl: string | null;
 }>({
   audioCtx: null,
   analyserNode: null,
@@ -36,7 +37,8 @@ export const audioState = $state<{
   micGranted: false,
   devices: [],
   selectedInputId: loadSavedDeviceId(STORAGE_KEY_INPUT),
-  selectedOutputId: loadSavedDeviceId(STORAGE_KEY_OUTPUT)
+  selectedOutputId: loadSavedDeviceId(STORAGE_KEY_OUTPUT),
+  recordedAudioUrl: null
 });
 
 export async function requestMic(deviceIdOrEvent?: string | Event) {
@@ -76,16 +78,16 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
     audioState.micStream = stream;
 
     if (!audioState.audioCtx) {
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-      audioState.audioCtx = new AudioContext({ sampleRate: 44100 });
+      audioState.audioCtx = new window.AudioContext({ sampleRate: 44100 });
       audioState.analyserNode = audioState.audioCtx.createAnalyser();
       audioState.analyserNode.fftSize = 2048;
       audioState.analyserNode.smoothingTimeConstant = 0.1;
       audioState.pitchBuf = new Float32Array(audioState.analyserNode.fftSize);
     }
     
-    if (audioState.selectedOutputId && typeof (audioState.audioCtx as any).setSinkId === 'function') {
-      try { await (audioState.audioCtx as any).setSinkId(audioState.selectedOutputId); } catch(e) {}
+    const acWithSink = audioState.audioCtx as unknown as AudioContextWithSink;
+    if (audioState.selectedOutputId && typeof acWithSink.setSinkId === 'function') {
+      try { await acWithSink.setSinkId(audioState.selectedOutputId); } catch(e) {}
     }
     
     audioState.micSource = audioState.audioCtx.createMediaStreamSource(stream);
@@ -117,10 +119,10 @@ export async function updateDevices() {
 export async function setOutputDevice(deviceId: string) {
   audioState.selectedOutputId = deviceId;
   saveDeviceId(STORAGE_KEY_OUTPUT, deviceId);
-  const ac = audioState.audioCtx;
-  if (!ac) return;
-  if (typeof (ac as any).setSinkId === 'function') {
-    try { await (ac as any).setSinkId(deviceId); } catch (e) {
+  const acWithSink = audioState.audioCtx as unknown as AudioContextWithSink;
+  if (!acWithSink) return;
+  if (typeof acWithSink.setSinkId === 'function') {
+    try { await acWithSink.setSinkId(deviceId); } catch (e) {
       console.warn("setSinkId error", e);
     }
   }
