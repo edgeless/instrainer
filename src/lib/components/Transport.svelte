@@ -443,9 +443,16 @@
           recordStopResolver = resolve;
         });
         mediaRecorder.onstop = () => {
-          const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+          const mimeType = mediaRecorder?.mimeType || 'audio/webm';
+          const blob = new Blob(recordedChunks, { type: mimeType });
           audioState.recordedAudioUrl = URL.createObjectURL(blob);
-          downloadFilename = `Fretless_Practice_${playerState.song.name}_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.webm`;
+
+          let ext = 'webm';
+          if (mimeType.includes('mp4')) ext = 'mp4';
+          else if (mimeType.includes('ogg')) ext = 'ogg';
+
+          downloadFilename = `Fretless_Practice_${playerState.song.name}_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${ext}`;
+
           if (recordStopResolver) {
             recordStopResolver();
             recordStopResolver = null;
