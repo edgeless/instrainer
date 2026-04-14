@@ -14,9 +14,7 @@
     }
   });
 
-  let downloadFilename = $derived(
-    `Fretless_Practice_${playerState.song.name}_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.webm`
-  );
+  let downloadFilename = $state('recording.webm');
 
   function fmtTime(sec: number) {
     const isNeg = sec < 0;
@@ -81,7 +79,7 @@
     function tick() {
       if (!playerState.isPlaying && !playerState.isRecording) return;
       if (!playerState.isFreeMode && playerState.currentBeat >= totalBeats) {
-        if (playerState.isRecording) stopRecord();
+        if (playerState.isRecording) stopRecord().catch(e => console.error("Error stopping record:", e));
         else pausePlay();
         return;
       }
@@ -291,12 +289,9 @@
     }
   }
 
-  interface HTMLAudioElementWithSink extends HTMLAudioElement {
-    setSinkId(sinkId: string): Promise<void>;
-  }
-
   let playbackAudio: HTMLAudioElementWithSink | null = null;
   let playbackAudioSource: MediaElementAudioSourceNode | null = null;
+  let lastLoadedAudioUrl: string | null = null;
 
   function cleanupPlaybackAudio() {
     if (playbackAudio) {
@@ -331,11 +326,13 @@
     if (audioState.recordedAudioUrl) {
       if (!playbackAudio) {
         playbackAudio = new Audio(audioState.recordedAudioUrl) as HTMLAudioElementWithSink;
+        lastLoadedAudioUrl = audioState.recordedAudioUrl;
         // 出力デバイスのルーティングのためにWeb Audio APIに接続
         playbackAudioSource = audioState.audioCtx.createMediaElementSource(playbackAudio);
         playbackAudioSource.connect(audioState.audioCtx.destination);
-      } else if (playbackAudio.src !== audioState.recordedAudioUrl) {
+      } else if (lastLoadedAudioUrl !== audioState.recordedAudioUrl) {
         playbackAudio.src = audioState.recordedAudioUrl;
+        lastLoadedAudioUrl = audioState.recordedAudioUrl;
       }
 
       if (typeof playbackAudio.setSinkId === 'function' && audioState.selectedOutputId) {
@@ -397,9 +394,12 @@
     else startPlay();
   }
 
-  function toggleRecord() {
-    if (playerState.isRecording) stopRecord();
-    else startRecord();
+  async function toggleRecord() {
+    if (playerState.isRecording) {
+      await stopRecord().catch(e => console.error("Error stopping record:", e));
+    } else {
+      startRecord();
+    }
   }
 
   let mediaRecorder: MediaRecorder | null = null;
@@ -435,6 +435,7 @@
         mediaRecorder.onstop = () => {
           const blob = new Blob(recordedChunks, { type: 'audio/webm' });
           audioState.recordedAudioUrl = URL.createObjectURL(blob);
+          downloadFilename = `Fretless_Practice_${playerState.song.name}_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.webm`;
           if (recordStopResolver) {
             recordStopResolver();
             recordStopResolver = null;
