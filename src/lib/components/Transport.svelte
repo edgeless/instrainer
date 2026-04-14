@@ -8,6 +8,9 @@
   let beatInterval: any = null;
 
   onDestroy(() => {
+    // Note: audioState is a module-level singleton. Revoking the URL here
+    // is safe for this SPA, but if routed out, setting it to null avoids
+    // leaving a stale URL reference for other components.
     if (audioState.recordedAudioUrl) {
       URL.revokeObjectURL(audioState.recordedAudioUrl);
       audioState.recordedAudioUrl = null;
@@ -377,6 +380,9 @@
     playerState.currentBeat = -4;
     playerState.currentLoop = 1;
     playerState.status = 'idle';
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
     cleanupPlaybackAudio();
   }
 
@@ -396,7 +402,11 @@
 
   async function toggleRecord() {
     if (playerState.isRecording) {
-      await stopRecord().catch(e => console.error("Error stopping record:", e));
+      try {
+        await stopRecord();
+      } catch (e) {
+        console.error("Error stopping record:", e);
+      }
     } else {
       startRecord();
     }

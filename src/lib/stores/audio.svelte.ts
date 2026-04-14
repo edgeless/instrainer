@@ -78,8 +78,7 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
     audioState.micStream = stream;
 
     if (!audioState.audioCtx) {
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-      audioState.audioCtx = new AudioContext({ sampleRate: 44100 });
+      audioState.audioCtx = new window.AudioContext({ sampleRate: 44100 });
       audioState.analyserNode = audioState.audioCtx.createAnalyser();
       audioState.analyserNode.fftSize = 2048;
       audioState.analyserNode.smoothingTimeConstant = 0.1;
