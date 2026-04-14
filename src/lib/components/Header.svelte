@@ -3,8 +3,9 @@
   import { audioState, requestMic, setOutputDevice } from '$lib/stores/audio.svelte';
   import { SONGS } from '$lib/utils/songs';
   import { parseIRealURI } from '$lib/utils/ireal';
+  import type Transport from './Transport.svelte';
 
-  let { transportRef } = $props<{ transportRef: any }>();
+  let { transportRef } = $props<{ transportRef: ReturnType<typeof Transport> | undefined }>();
 
   function onSongChange(e: Event) {
     const select = e.target as HTMLSelectElement;

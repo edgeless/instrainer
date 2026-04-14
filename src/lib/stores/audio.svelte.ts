@@ -1,3 +1,5 @@
+import { midiToFreq } from '$lib/utils/pitch';
+
 const STORAGE_KEY_INPUT = 'audio_input_device_id';
 const STORAGE_KEY_OUTPUT = 'audio_output_device_id';
 
@@ -143,12 +145,27 @@ export function playClick(accent: boolean) {
   osc.stop(time + 0.06);
 }
 
-export function playDemoNote(midi: number, durationSec: number) {
+// 進行中のデモ用オシレーターを管理するリスト
+export const activeDemoOscillators: OscillatorNode[] = [];
+
+export function stopDemoNotes() {
+  for (const osc of activeDemoOscillators) {
+    try {
+      osc.stop();
+      osc.disconnect();
+    } catch (e) {
+      // already stopped or disconnected
+    }
+  }
+  activeDemoOscillators.length = 0;
+}
+
+export function playDemoNote(midi: number, durationSec: number, delaySec: number = 0) {
   const ac = audioState.audioCtx;
   if (!ac) return;
 
-  const time = ac.currentTime;
-  const freq = 440 * Math.pow(2, (midi - 69) / 12);
+  const time = ac.currentTime + delaySec;
+  const freq = midiToFreq(midi);
 
   const osc = ac.createOscillator();
   const gain = ac.createGain();
@@ -176,4 +193,16 @@ export function playDemoNote(midi: number, durationSec: number) {
 
   osc.start(time);
   osc.stop(time + durationSec + 0.1); // add a little buffer for release
+
+  activeDemoOscillators.push(osc);
+
+  // クリーンアップ
+  osc.onended = () => {
+    const idx = activeDemoOscillators.indexOf(osc);
+    if (idx !== -1) {
+      activeDemoOscillators.splice(idx, 1);
+    }
+    osc.disconnect();
+    gain.disconnect();
+  };
 }

@@ -2,7 +2,7 @@
   import { onDestroy } from 'svelte';
   import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds, getDisplayBeat } from '$lib/stores/player.svelte';
   import { scoreState, resetScore } from '$lib/stores/score.svelte';
-  import { audioState, playClick, playDemoNote } from '$lib/stores/audio.svelte';
+  import { audioState, playClick, playDemoNote, stopDemoNotes } from '$lib/stores/audio.svelte';
   import { midiToFreq, freqToCents, freqToMidi, getGrade, getTimingGrade, getCombinedGrade } from '$lib/utils/pitch';
 
   let beatInterval: any = null;
@@ -122,10 +122,18 @@
 
       // Play demo note if needed
       if (playerState.isDemoPlaying && !isFree && playerState.currentBeat >= 0) {
-        const note = playerState.song.notes[playerState.currentNoteIdx];
-        if (note && note.beat === beatInLoop) {
-          const durationSec = note.dur * (60 / playerState.song.bpm);
-          playDemoNote(note.midi, durationSec);
+        // 次の tick までの間に鳴る音符をすべて拾う（小数ビート対応）
+        let checkIdx = playerState.currentNoteIdx;
+        while (checkIdx < playerState.song.notes.length) {
+          const note = playerState.song.notes[checkIdx];
+          if (note.beat >= beatInLoop + 1) break; // 次のビート以降なら終了
+
+          if (note.beat >= beatInLoop) {
+            const durationSec = note.dur * (60 / playerState.song.bpm);
+            const delaySec = (note.beat - beatInLoop) * (60 / playerState.song.bpm);
+            playDemoNote(note.midi, durationSec, delaySec);
+          }
+          checkIdx++;
         }
       }
 
@@ -362,6 +370,7 @@
     playerState.isPlaying = false;
     if (beatInterval) clearTimeout(beatInterval);
     playerState.status = 'idle';
+    stopDemoNotes();
     if (playbackAudio) {
       playbackAudio.pause();
     }
@@ -372,6 +381,7 @@
     playerState.isRecording = false;
     playerState.isDemoPlaying = false;
     if (beatInterval) clearTimeout(beatInterval);
+    stopDemoNotes();
     playerState.currentNoteIdx = 0;
     playerState.currentBeat = -4;
     playerState.currentLoop = 1;
