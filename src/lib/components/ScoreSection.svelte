@@ -28,7 +28,8 @@
   // 単一の出力先コンテナ
   let scoreContainer: HTMLDivElement | undefined = $state();
 
-  // 行のレイアウト情報を保存
+  // 行のレイアウト情報を保存。
+  // 注意: renderScore() のみで更新され、updateCursor() からは読み取り専用として扱われます。
   type RowLayout = ReturnType<typeof getRowLayout>;
   let activeLayouts: RowLayout[] = [];
 
@@ -412,7 +413,9 @@
         // Find which row this beat belongs to
         let targetRowIdx = -1;
         for (let i = 0; i < activeLayouts.length; i++) {
-          if (beatInLoop >= activeLayouts[i].rowStartBeat && beatInLoop < activeLayouts[i].rowEndBeat) {
+          const isLastRow = i === activeLayouts.length - 1;
+          if (beatInLoop >= activeLayouts[i].rowStartBeat &&
+              (beatInLoop < activeLayouts[i].rowEndBeat || (isLastRow && beatInLoop <= activeLayouts[i].rowEndBeat))) {
             targetRowIdx = i;
             break;
           }
