@@ -44,6 +44,7 @@
     void playerState.isPlaying;
     void playerState.isRecording;
     void playerState.currentNoteIdx;
+    void scoreState.noteResults.length; // Track noteResults explicitly for color updates
     requestAnimationFrame(renderScore);
   });
 
