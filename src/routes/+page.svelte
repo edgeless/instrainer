@@ -9,11 +9,13 @@
   import { playerState } from '$lib/stores/player.svelte';
   import FreeScoreArea from '$lib/components/FreeScoreArea.svelte';
   import FreeScorePanel from '$lib/components/FreeScorePanel.svelte';
+
+  let transportRef: ReturnType<typeof Transport> | undefined = $state(undefined);
 </script>
 
 <MicPermission />
 
-<Header />
+<Header {transportRef} />
 
 <div class="app">
   {#if playerState.isFreeMode}
@@ -31,7 +33,7 @@
     {/if}
   </aside>
 
-  <Transport />
+  <Transport bind:this={transportRef} />
 </div>
 
 <ResultOverlay />

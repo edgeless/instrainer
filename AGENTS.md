@@ -13,15 +13,15 @@ AIコーディングエージェント向けの文書です。このドキュメ
 
 ## 3. アーキテクチャ
 - **コンポーネント (`src/lib/components`)**: UI要素は機能ごとに構造化されています。
-  - `Header.svelte`: BPMやリピート回数、オーディオデバイスの選択を担当。RepeatとBPMはスクロール（マウスホイール）で増減可能。
+  - `Header.svelte`: BPMやリピート回数、オーディオデバイスの選択、およびデモ再生のトグルを担当。RepeatとBPMはスクロール（マウスホイール）で増減可能。
   - `PitchMonitor.svelte`: ピッチと波形をリアルタイムで可視化。
   - `ScoreSection.svelte`: 五線譜・タブ譜の描画。4小節/行の多段表示に対応し、「両方」モードでは五線譜行とタブ譜行を交互に配置する。`buildStaffRows()` / `buildTabRows()` が行ごとのHTML文字列配列を返し、`renderScore()` が viewMode に応じて合成する。リピート中（`repeatCount > 1`）は右上にループインジケーター（n/m）を表示する。
   - `ScorePanel.svelte`: セッションスコア（正確度・偏差）とノート履歴ドットの表示。リピート時は最後に演奏した周回の結果を表示する。
-  - `Transport.svelte`: 再生コントロール。`requestAnimationFrame` を用いた連続的な進捗バーアニメーション、および絶対時間ベースの `setTimeout` スケジューリングによるビートのドリフト補正を実装している。再生時の基準時刻は `playerState.playbackStartTimeMs` に保持する。`MediaRecorder` による音声の記録・再生・ダウンロード機能もここで制御する（カウントイン等の遅延再生には `setTimeout` を使用しており、精度はベストエフォートである点に注意）。
+  - `Transport.svelte`: 再生コントロール。`requestAnimationFrame` を用いた連続的な進捗バーアニメーション、絶対時間ベースの `setTimeout` スケジューリングによるビートのドリフト補正、およびデモ用音源のスケジューリング再生を実装している。再生時の基準時刻は `playerState.playbackStartTimeMs` に保持する。`MediaRecorder` による音声の記録・再生・ダウンロード機能もここで制御する（カウントイン等の遅延再生には `setTimeout` を使用しており、精度はベストエフォートである点に注意）。
   - `FreeScoreArea.svelte`: フリー採点モード時の中央表示エリア。音名表示をリアルタイムで行う。
   - `FreeScorePanel.svelte`: フリー採点モード時の統計パネル（平均偏差、安定度など）。
 - **ストア・状態 (`src/lib/stores`)**: `$state`を利用したクラスやクロージャを含む `.svelte.ts` ファイルを使用します。
-  - `audio.svelte.ts`: Web Audio APIロジック、デバイス選択、マイクのアクセス許可。`localStorage` を使用して選択した入力・出力デバイスを永続化する。また、録音データ（`recordedAudioUrl`）の保持も行う。
+  - `audio.svelte.ts`: Web Audio APIロジック、デバイス選択、マイクのアクセス許可。`localStorage` を使用して選択した入力・出力デバイスを永続化する。録音データ（`recordedAudioUrl`）の保持や、デモ再生時のサイン波オシレーター (`activeDemoOscillators`) の管理も行う。
   - `player.svelte.ts`: メトロノーム、再生状態、リピート設定、およびインポート曲の保持。`localStorage` を使用してインポートした曲を永続化する。
   - `score.svelte.ts`: スコア計算やセッション指標を保存するロジック。
 - **ユーティリティ (`src/lib/utils`)**: 副作用のない（純粋な）TypeScript関数群。

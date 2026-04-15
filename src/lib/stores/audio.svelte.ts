@@ -1,3 +1,5 @@
+import { midiToFreq } from '$lib/utils/pitch';
+
 const STORAGE_KEY_INPUT = 'audio_input_device_id';
 const STORAGE_KEY_OUTPUT = 'audio_output_device_id';
 
@@ -141,4 +143,66 @@ export function playClick(accent: boolean) {
   gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
   osc.start(time);
   osc.stop(time + 0.06);
+}
+
+// 進行中のデモ用オシレーターを管理するリスト
+export const activeDemoOscillators: OscillatorNode[] = [];
+
+export function stopDemoNotes() {
+  for (const osc of activeDemoOscillators) {
+    try {
+      osc.stop();
+      osc.disconnect();
+    } catch (e) {
+      // already stopped or disconnected
+    }
+  }
+  activeDemoOscillators.length = 0;
+}
+
+export function playDemoNote(midi: number, durationSec: number, delaySec: number = 0) {
+  const ac = audioState.audioCtx;
+  if (!ac) return;
+
+  const time = ac.currentTime + delaySec;
+  const freq = midiToFreq(midi);
+
+  const osc = ac.createOscillator();
+  const gain = ac.createGain();
+
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+
+  osc.connect(gain);
+  gain.connect(ac.destination);
+
+  // Attack, Decay, Sustain, Release (ADSR) envelope for a somewhat musical sound
+  const attackTime = 0.02;
+  const releaseTime = 0.05;
+  const maxGain = 0.5;
+
+  gain.gain.setValueAtTime(0, time);
+  gain.gain.linearRampToValueAtTime(maxGain, time + attackTime);
+
+  // Slight decay
+  gain.gain.exponentialRampToValueAtTime(maxGain * 0.8, time + attackTime + 0.1);
+
+  // Release
+  gain.gain.setValueAtTime(maxGain * 0.8, time + durationSec - releaseTime);
+  gain.gain.linearRampToValueAtTime(0.001, time + durationSec);
+
+  osc.start(time);
+  osc.stop(time + durationSec + 0.1); // add a little buffer for release
+
+  activeDemoOscillators.push(osc);
+
+  // クリーンアップ
+  osc.onended = () => {
+    const idx = activeDemoOscillators.indexOf(osc);
+    if (idx !== -1) {
+      activeDemoOscillators.splice(idx, 1);
+    }
+    osc.disconnect();
+    gain.disconnect();
+  };
 }

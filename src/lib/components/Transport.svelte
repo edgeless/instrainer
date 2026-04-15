@@ -2,7 +2,7 @@
   import { onDestroy } from 'svelte';
   import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds, getDisplayBeat } from '$lib/stores/player.svelte';
   import { scoreState, resetScore } from '$lib/stores/score.svelte';
-  import { audioState, playClick } from '$lib/stores/audio.svelte';
+  import { audioState, playClick, playDemoNote, stopDemoNotes } from '$lib/stores/audio.svelte';
   import { midiToFreq, freqToCents, freqToMidi, getGrade, getTimingGrade, getCombinedGrade } from '$lib/utils/pitch';
 
   let beatInterval: any = null;
@@ -118,6 +118,23 @@
           scoreState.currentCentsHistory = [];
         }
         playerState.currentNoteIdx = targetNoteIdx;
+      }
+
+      // Play demo note if needed
+      if (playerState.isDemoPlaying && !isFree && playerState.currentBeat >= 0) {
+        // 次の tick までの間に鳴る音符をすべて拾う（小数ビート対応）
+        let checkIdx = playerState.currentNoteIdx;
+        while (checkIdx < playerState.song.notes.length) {
+          const note = playerState.song.notes[checkIdx];
+          if (note.beat >= beatInLoop + 1) break; // 次のビート以降なら終了
+
+          if (note.beat >= beatInLoop) {
+            const durationSec = note.dur * (60 / playerState.song.bpm);
+            const delaySec = (note.beat - beatInLoop) * (60 / playerState.song.bpm);
+            playDemoNote(note.midi, durationSec, delaySec);
+          }
+          checkIdx++;
+        }
       }
 
       playerState.currentBeat++;
@@ -353,6 +370,7 @@
     playerState.isPlaying = false;
     if (beatInterval) clearTimeout(beatInterval);
     playerState.status = 'idle';
+    stopDemoNotes();
     if (playbackAudio) {
       playbackAudio.pause();
     }
@@ -361,7 +379,9 @@
   export function stopAll() {
     playerState.isPlaying = false;
     playerState.isRecording = false;
+    playerState.isDemoPlaying = false;
     if (beatInterval) clearTimeout(beatInterval);
+    stopDemoNotes();
     playerState.currentNoteIdx = 0;
     playerState.currentBeat = -4;
     playerState.currentLoop = 1;
@@ -381,12 +401,24 @@
   }
 
   function togglePlay() {
-    if (playerState.isRecording) return;
+    if (playerState.isRecording || playerState.isDemoPlaying) return;
     if (playerState.isPlaying) pausePlay();
     else startPlay();
   }
 
+  export function toggleDemoPlay() {
+    if (playerState.isRecording || (playerState.isPlaying && !playerState.isDemoPlaying)) return;
+    if (playerState.isDemoPlaying) {
+      playerState.isDemoPlaying = false;
+      pausePlay();
+    } else {
+      playerState.isDemoPlaying = true;
+      startPlay();
+    }
+  }
+
   async function toggleRecord() {
+    if (playerState.isDemoPlaying) return;
     if (playerState.isRecording) {
       try {
         await stopRecord();
@@ -532,11 +564,11 @@
 
 <div class="transport">
   <button class="tbtn" title="先頭に戻る" onclick={seekStart}>⏮</button>
-  <button class="tbtn with-text" title="再生 (評価なしの練習モード)" onclick={togglePlay}>
+  <button class="tbtn with-text" title="再生 (評価なしの練習モード)" onclick={togglePlay} disabled={playerState.isDemoPlaying}>
     <span class="icon">{playerState.isPlaying && !playerState.isRecording ? '⏸' : '▶'}</span>
     <span class="lbl">{playerState.isPlaying && !playerState.isRecording ? '一時停止' : '再生'}</span>
   </button>
-  <button class="tbtn rec with-text {playerState.isRecording ? 'on' : ''}" title="録音 (採点・記録モード)" onclick={toggleRecord}>
+  <button class="tbtn rec with-text {playerState.isRecording ? 'on' : ''}" title="録音 (採点・記録モード)" onclick={toggleRecord} disabled={playerState.isDemoPlaying}>
     <span class="icon">⏺</span>
     <span class="lbl">録音</span>
   </button>
