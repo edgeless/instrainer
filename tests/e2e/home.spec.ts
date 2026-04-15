@@ -39,4 +39,7 @@ test('transport components are correctly rendered and accessible', async ({ page
   await expect(page.locator(".tbtn:has-text('再生')")).toBeVisible();
   await expect(page.locator(".tbtn:has-text('録音')")).toBeVisible();
   await expect(page.locator(".tbtn[title='停止']")).toBeVisible();
+
+  // ensure the volume control is present
+  await expect(page.locator(".vol-ctrl[title='音量']")).toBeVisible();
 });

@@ -2,6 +2,7 @@ import { midiToFreq } from '$lib/utils/pitch';
 
 const STORAGE_KEY_INPUT = 'audio_input_device_id';
 const STORAGE_KEY_OUTPUT = 'audio_output_device_id';
+const STORAGE_KEY_VOLUME = 'audio_master_volume';
 
 function loadSavedDeviceId(key: string): string {
   if (typeof localStorage === 'undefined') return '';
@@ -29,6 +30,7 @@ export const audioState = $state<{
   selectedInputId: string;
   selectedOutputId: string;
   recordedAudioUrl: string | null;
+  masterVolume: number;
 }>({
   audioCtx: null,
   analyserNode: null,
@@ -40,8 +42,14 @@ export const audioState = $state<{
   devices: [],
   selectedInputId: loadSavedDeviceId(STORAGE_KEY_INPUT),
   selectedOutputId: loadSavedDeviceId(STORAGE_KEY_OUTPUT),
-  recordedAudioUrl: null
+  recordedAudioUrl: null,
+  masterVolume: Number(loadSavedDeviceId(STORAGE_KEY_VOLUME) || '1')
 });
+
+export function setMasterVolume(vol: number) {
+  audioState.masterVolume = vol;
+  saveDeviceId(STORAGE_KEY_VOLUME, vol.toString());
+}
 
 export async function requestMic(deviceIdOrEvent?: string | Event) {
   let deviceId = typeof deviceIdOrEvent === 'string' ? deviceIdOrEvent : undefined;
@@ -139,7 +147,8 @@ export function playClick(accent: boolean) {
   osc.connect(gain);
   gain.connect(ac.destination);
   osc.frequency.value = accent ? 1200 : 900;
-  gain.gain.setValueAtTime(accent ? 0.3 : 0.15, time);
+  const baseGain = accent ? 0.3 : 0.15;
+  gain.gain.setValueAtTime(baseGain * audioState.masterVolume, time);
   gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
   osc.start(time);
   osc.stop(time + 0.06);
@@ -179,7 +188,7 @@ export function playDemoNote(midi: number, durationSec: number, delaySec: number
   // Attack, Decay, Sustain, Release (ADSR) envelope for a somewhat musical sound
   const attackTime = 0.02;
   const releaseTime = 0.05;
-  const maxGain = 0.5;
+  const maxGain = 0.5 * audioState.masterVolume;
 
   gain.gain.setValueAtTime(0, time);
   gain.gain.linearRampToValueAtTime(maxGain, time + attackTime);
