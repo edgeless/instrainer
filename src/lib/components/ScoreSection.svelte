@@ -1,5 +1,6 @@
 <script lang="ts">
   import { playerState, getOriginalBeats, getDisplayBeat } from '$lib/stores/player.svelte';
+  import { scoreState } from '$lib/stores/score.svelte';
   import { escapeHtml } from '$lib/utils/security';
   
   let viewMode = $state('both');
@@ -209,6 +210,13 @@
       upcoming: 'rgba(255,255,255,0.25)'
     };
 
+    const GRADE_COLORS: Record<string, string> = {
+      perfect: 'var(--accent2)',
+      good: 'var(--accent)',
+      ok: 'var(--warn)',
+      miss: 'var(--danger)'
+    };
+
     const rows: string[] = [];
 
     for (let row = 0; row < totalRows; row++) {
@@ -259,7 +267,14 @@
         let noteState = 'upcoming';
         if (i < playerState.currentNoteIdx) noteState = 'played';
         else if (i === playerState.currentNoteIdx) noteState = 'current';
-        const col = NOTE_COLORS[noteState];
+
+        let col = NOTE_COLORS[noteState];
+        if (noteState === 'played') {
+          const result = scoreState.noteResults[i];
+          if (result && result.grade) {
+            col = GRADE_COLORS[result.grade] || col;
+          }
+        }
 
         if (y > staffTop + staffH + 1) {
           for (let ly = staffTop + staffH + lineSpacing; ly <= y + 2; ly += lineSpacing)
@@ -367,7 +382,14 @@
         if (sidx === -1) return;
 
         const y = 20 + sidx * 20;
-        const state = i < playerState.currentNoteIdx ? 'tc-played' : i === playerState.currentNoteIdx ? 'tc-current' : '';
+        let state = i < playerState.currentNoteIdx ? 'tc-played' : i === playerState.currentNoteIdx ? 'tc-current' : '';
+        if (state === 'tc-played') {
+          const result = scoreState.noteResults[i];
+          if (result && result.grade) {
+            state = `tc-played-${result.grade}`;
+          }
+        }
+
         const beatNum = (note.beat % timeSigNum) + 1;
         const beatCol = i === playerState.currentNoteIdx ? 'var(--accent)' : 'var(--muted)';
 
@@ -618,6 +640,10 @@
   z-index: 2;
 }
 :global(.tab-note-val.tc-played) { color: rgba(58,245,160,0.7); }
+:global(.tab-note-val.tc-played-perfect) { color: var(--accent2); }
+:global(.tab-note-val.tc-played-good) { color: var(--accent); }
+:global(.tab-note-val.tc-played-ok) { color: var(--warn); }
+:global(.tab-note-val.tc-played-miss) { color: var(--danger); }
 :global(.tab-note-val.tc-current) { 
   color: var(--accent); font-weight: 700; 
   text-shadow: 0 0 8px var(--accent);
