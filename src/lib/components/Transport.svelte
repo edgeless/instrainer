@@ -2,7 +2,7 @@
   import { onDestroy } from 'svelte';
   import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds, getDisplayBeat } from '$lib/stores/player.svelte';
   import { scoreState, resetScore } from '$lib/stores/score.svelte';
-  import { audioState, playClick, playDemoNote, stopDemoNotes } from '$lib/stores/audio.svelte';
+  import { audioState, playClick, playDemoNote, stopDemoNotes, setMasterVolume } from '$lib/stores/audio.svelte';
   import { midiToFreq, freqToCents, freqToMidi, getGrade, getTimingGrade, getCombinedGrade } from '$lib/utils/pitch';
 
   let beatInterval: any = null;
@@ -295,9 +295,15 @@
     }
   }
 
-  let playbackAudio: HTMLAudioElementWithSink | null = null;
+  let playbackAudio: HTMLAudioElementWithSink | null = $state(null);
   let playbackAudioSource: MediaElementAudioSourceNode | null = null;
   let lastLoadedAudioUrl: string | null = null;
+
+  $effect(() => {
+    if (playbackAudio) {
+      playbackAudio.volume = audioState.masterVolume;
+    }
+  });
 
   function cleanupPlaybackAudio() {
     if (playbackAudio) {
@@ -332,6 +338,7 @@
     if (audioState.recordedAudioUrl) {
       if (!playbackAudio) {
         playbackAudio = new Audio(audioState.recordedAudioUrl) as HTMLAudioElementWithSink;
+        playbackAudio.volume = audioState.masterVolume;
         lastLoadedAudioUrl = audioState.recordedAudioUrl;
         // 出力デバイスのルーティングのためにWeb Audio APIに接続
         playbackAudioSource = audioState.audioCtx.createMediaElementSource(playbackAudio);
@@ -574,6 +581,11 @@
   </button>
   <button class="tbtn" title="停止" onclick={stopAll}>⏹</button>
 
+  <div class="vol-ctrl" title="音量">
+    🔊
+    <input type="range" min="0" max="1" step="0.05" value={audioState.masterVolume} oninput={(e) => setMasterVolume(Number((e.currentTarget as HTMLInputElement).value))} />
+  </div>
+
   {#if audioState.recordedAudioUrl}
     <a href={audioState.recordedAudioUrl} download={downloadFilename} class="tbtn dl-btn" title="録音データをダウンロード">⬇</a>
   {/if}
@@ -658,15 +670,16 @@
 }
 #progFill::after { content:''; position:absolute; right:-5px; top:-3px; width:10px; height:10px; border-radius:50%; background:var(--accent); box-shadow:0 0 6px var(--accent); }
 
-.tol-ctrl { display: flex; align-items: center; gap: 6px; font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted); white-space: nowrap; }
-.tol-ctrl input[type=range] {
+.tol-ctrl, .vol-ctrl { display: flex; align-items: center; gap: 6px; font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted); white-space: nowrap; }
+.tol-ctrl input[type=range], .vol-ctrl input[type=range] {
   -webkit-appearance: none; appearance: none; width: 70px; height: 3px;
   background: var(--border); border-radius: 2px; outline: none; cursor: pointer;
 }
-.tol-ctrl input::-webkit-slider-thumb {
+.tol-ctrl input::-webkit-slider-thumb, .vol-ctrl input::-webkit-slider-thumb {
   -webkit-appearance: none; appearance: none; width: 11px; height: 11px; border-radius: 50%;
   background: var(--accent); box-shadow: 0 0 5px var(--accent);
 }
+.vol-ctrl { font-size: 14px; margin-left: 8px; }
 
 .status-chip {
   font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 2px;

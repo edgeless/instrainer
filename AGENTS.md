@@ -21,7 +21,7 @@ AIコーディングエージェント向けの文書です。このドキュメ
   - `FreeScoreArea.svelte`: フリー採点モード時の中央表示エリア。音名表示をリアルタイムで行う。
   - `FreeScorePanel.svelte`: フリー採点モード時の統計パネル（平均偏差、安定度など）。
 - **ストア・状態 (`src/lib/stores`)**: `$state`を利用したクラスやクロージャを含む `.svelte.ts` ファイルを使用します。
-  - `audio.svelte.ts`: Web Audio APIロジック、デバイス選択、マイクのアクセス許可。`localStorage` を使用して選択した入力・出力デバイスを永続化する。録音データ（`recordedAudioUrl`）の保持や、デモ再生時のサイン波オシレーター (`activeDemoOscillators`) の管理も行う。
+  - `audio.svelte.ts`: Web Audio APIロジック、デバイス選択、マイクのアクセス許可、マスター音量（`masterVolume`）の管理。`localStorage` を使用して選択した入力・出力デバイス、およびマスター音量を永続化する。録音データ（`recordedAudioUrl`）の保持や、デモ再生時のサイン波オシレーター (`activeDemoOscillators`) の管理も行う。
   - `player.svelte.ts`: メトロノーム、再生状態、リピート設定、およびインポート曲の保持。`localStorage` を使用してインポートした曲を永続化する。
   - `score.svelte.ts`: スコア計算やセッション指標を保存するロジック。
 - **ユーティリティ (`src/lib/utils`)**: 副作用のない（純粋な）TypeScript関数群。
