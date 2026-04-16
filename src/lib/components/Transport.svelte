@@ -192,7 +192,10 @@
       const firstSampleTime = validSamples[0].time;
       const originalBeats = getOriginalBeats();
       const currentLoopOffset = (playerState.currentLoop - 1) * originalBeats;
-      const expectedNoteTimeMs = playerState.playbackStartTimeMs + ((note.beat + currentLoopOffset) * (60 / playerState.song.bpm) * 1000);
+      // When not in free mode, the count-in (4 beats) is part of playbackStartTimeMs offset.
+      // So expected time is playbackStartTimeMs + (note.beat + 4) * secPerBeat.
+      const beatOffset = playerState.isFreeMode ? note.beat + currentLoopOffset : note.beat + currentLoopOffset + 4;
+      const expectedNoteTimeMs = playerState.playbackStartTimeMs + (beatOffset * (60 / playerState.song.bpm) * 1000);
 
       timingDiffMs = firstSampleTime - expectedNoteTimeMs;
       timingGrade = getTimingGrade(Math.abs(timingDiffMs));
@@ -287,7 +290,8 @@
         // In post analysis, calculate expected time
         const originalBeats = getOriginalBeats();
         const loopOffset = (rs.loopIdx - 1) * originalBeats;
-        const expectedNoteTimeMs = playerState.playbackStartTimeMs + ((note.beat + loopOffset) * (60 / playerState.song.bpm) * 1000);
+        const beatOffset = playerState.isFreeMode ? note.beat + loopOffset : note.beat + loopOffset + 4;
+        const expectedNoteTimeMs = playerState.playbackStartTimeMs + (beatOffset * (60 / playerState.song.bpm) * 1000);
         timingDiffMs = firstSampleTime - expectedNoteTimeMs;
         timingGrade = getTimingGrade(Math.abs(timingDiffMs));
       }
