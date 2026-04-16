@@ -159,7 +159,10 @@
   }
 
   function gradeNote(idx: number, centsHistory: { freq: number, isSliding: boolean, time: number }[]) {
-    if (!centsHistory || centsHistory.length === 0) return;
+    if (!centsHistory || centsHistory.length === 0) {
+      scoreState.noteResults[idx] = { grade: 'miss', combinedGrade: 'miss', pitchGrade: 'miss', timingGrade: 'miss', avgCents: null, timingDiffMs: null };
+      return;
+    }
     const note = playerState.song.notes[idx];
     const targetF = midiToFreq(note.midi);
 
