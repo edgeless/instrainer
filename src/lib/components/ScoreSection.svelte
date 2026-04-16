@@ -262,7 +262,7 @@
       // ノート
       notes.forEach((note, i) => {
         if (note.beat < layout.rowStartBeat || note.beat >= layout.rowEndBeat) return;
-        const x = nodeLayoutMap.get(i)!;
+        let x = nodeLayoutMap.get(i)!;
         const y = getNoteY(note.name, staffTop, lineSpacing);
 
         let noteState = 'upcoming';
@@ -272,8 +272,13 @@
         let col = NOTE_COLORS[noteState];
         if (noteState === 'played') {
           const result = scoreState.noteResults[i];
-          if (result && result.grade) {
-            col = GRADE_COLORS[result.grade] || col;
+          if (result) {
+            if (result.grade) col = GRADE_COLORS[result.grade] || col;
+            // Shift x coordinate based on timingDiffMs
+            if (result.timingDiffMs !== null && result.timingDiffMs !== undefined) {
+              const shift = Math.max(-12, Math.min(12, result.timingDiffMs / 15));
+              x += shift;
+            }
           }
         }
 
@@ -378,7 +383,7 @@
       notes.forEach((note, i) => {
         if (note.beat < layout.rowStartBeat || note.beat >= layout.rowEndBeat) return;
 
-        const x = layout.elPositions[layout.elements.findIndex(el => el.type === 'note' && el.noteIdx === i)];
+        let x = layout.elPositions[layout.elements.findIndex(el => el.type === 'note' && el.noteIdx === i)];
         const sidx = STRINGS.indexOf(note.string);
         if (sidx === -1) return;
 
@@ -386,8 +391,12 @@
         let state = i < playerState.currentNoteIdx ? 'tc-played' : i === playerState.currentNoteIdx ? 'tc-current' : '';
         if (state === 'tc-played') {
           const result = scoreState.noteResults[i];
-          if (result && result.grade) {
-            state = `tc-played-${result.grade}`;
+          if (result) {
+            if (result.grade) state = `tc-played-${result.grade}`;
+            if (result.timingDiffMs !== null && result.timingDiffMs !== undefined) {
+              const shift = Math.max(-12, Math.min(12, result.timingDiffMs / 15));
+              x += shift;
+            }
           }
         }
 
