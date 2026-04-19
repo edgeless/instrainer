@@ -39,7 +39,7 @@
       const freq = detectPitch(audioState.analyserNode, audioState.pitchBuf, audioState.audioCtx.sampleRate);
       detectedFreq = freq;
       scoreState.detectedFreq = freq;
-      if (playerState.isRecording && freq > 0 && playerState.currentBeat >= 0) {
+      if (playerState.isRecording && playerState.currentBeat >= 0) {
         // スライド検知
         let sliding = false;
         if (prevFreq > 0 && freq > 0) {
@@ -50,10 +50,11 @@
           }
         }
         scoreState.isSliding = sliding;
-        scoreState.currentCentsHistory.push({ freq, isSliding: sliding, time: performance.now() });
+        // Even if freq is 0 (silence), we push it so that Transport grading knows there was silence
+        scoreState.currentCentsHistory.push({ freq: freq > 0 ? freq : -1, isSliding: sliding, time: performance.now() });
 
         // フリーモード時のリアルタイム統計更新
-        if (playerState.isFreeMode) {
+        if (playerState.isFreeMode && freq > 0) {
           if (!sliding) {
             const targetMidi = freqToMidi(freq);
             const targetF = midiToFreq(targetMidi);
@@ -84,7 +85,7 @@
           }
         }
 
-        prevFreq = freq;
+        prevFreq = freq > 0 ? freq : -1;
       } else {
         prevFreq = freq > 0 ? freq : -1;
         scoreState.isSliding = false;
