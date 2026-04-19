@@ -197,3 +197,12 @@ docker compose -f compose.test.yaml run unit
 docker compose -f compose.test.yaml run e2etest
 ```
 
+## 14. オーディオデバイス・ブラウザ互換性の注意点
+
+### Web Audio API と仮想デバイス (Voicemeeter等) の競合
+Voicemeeter Banana 等の仮想オーディオミキサーを使用している環境では、Web Audio API の挙動が不安定になり、ブラウザのオーディオレンダラがクラッシュ（`suspended` または `closed` 状態へ強制遷移）するケースがあります。以下の点に注意してください。
+
+- **サンプリングレートのハードコード禁止**: `new AudioContext({ sampleRate: 44100 })` のようにレートを固定すると、OS側や仮想ドライバ側の設定とミスマッチが起きた際にレンダラがクラッシュします。原則として `sampleRate` は指定せず、ブラウザ（OS）の既定値を使用するようにしてください。
+- **`setSinkId` のエラーハンドリング**: スピーカーなどの出力先をプログラムから切り替える `setSinkId` は、一部の仮想デバイスにおいて成功を返した直後にレンダラを停止させることがあります。この操作は必ず `try-catch` で囲み、失敗してもアプリケーション全体が停止しないように考慮してください。
+- **デバッグ指針**: 開発者ツールの Console に "The AudioContext encountered an error..." というメッセージが出た場合、多くは上記のようなハードウェア/ドライバ層の競合が原因です。コードの例外ではないため、`onstatechange` などのイベントで状態を監視して、適切にユーザーへ通知することが推奨されます。
+

@@ -1,0 +1,93 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index 95ea97f..76ec7af 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -87,6 +87,7 @@ AIコーディングエージェント向けの文書です。このドキュメ
+ - **キー（調）の表示**: `playerState.song.key` が存在する場合、初行のヘ音記号付近に大きく表示する。
+ - ヘ音記号・拍子記号は五線譜の初行のみに表示する。2行目以降は省略し、描画領域の `startX` を小さくして音符の余白を揃える。
+ - 「両方」モード (`viewMode === 'both'`) では、行インデックスごとに五線譜SVG → タブ譜HTMLを交互に配置する。
++- 演奏された音符は、`scoreState.noteResults` の評価結果（perfect, good, ok, miss）に応じて、対応する色（それぞれ `--accent2`, `--accent`, `--warn`, `--danger`）でハイライト表示されます。
+ 
+ ### 音符の形状描画ルール
+ `note.dur` の値に応じて符頭・符幹・旗・付点を描き分ける。
+diff --git a/README.md b/README.md
+index 3bf8648..397d4f4 100644
+--- a/README.md
++++ b/README.md
+@@ -13,7 +13,7 @@ SvelteKitで構築された、モダンなWebベースのフレットレスベ
+ - **フリー採点モード**: 固定の譜面なしで自由に演奏し、イントネーションの正確さと安定度をリアルタイムで測定・記録します。スライド移動によるノイズの自動除外（スライド検知）にも対応しています。フリーモードでの「再生」時は、メトロノームの連続クリックと録音された音声が同時に再生されます。
+ - **録音と再生**: `MediaRecorder` を使用して演奏を WebM 形式で録音可能。録音データは「再生」モード時にメトロノームと一緒に同期再生でき、ブラウザから直接ダウンロードすることも可能です。
+ - **曲のリピート機能**: 曲全体を指定した回数だけ繰り返して練習できます。リピート中は現在の周回数（n/m）が表示されます。
+-- **多段スコア表示**: 五線譜・タブ譜を4小節/行で多段表示。統合レイアウトエンジンにより五線譜とタブ譜の描画位置が完璧に同期。臨時記号（♯/♭）の自動描画、キー（調）の明示、オクターブ番号を省いたシンプルな音名表記に対応。
++- **多段スコア表示**: 五線譜・タブ譜を4小節/行で多段表示。統合レイアウトエンジンにより五線譜とタブ譜の描画位置が完璧に同期。臨時記号（♯/♭）の自動描画、キー（調）の明示、オクターブ番号を省いたシンプルな音名表記に対応。また、演奏された音符は評価結果（perfect, good, ok, miss）に応じてリアルタイムに色分けされます。
+ - **スムーズな再生コントロール**: `requestAnimationFrame` を用いた連続的な進捗バー・および五線譜/タブ譜を貫通する進捗カーソルの滑らかなアニメーション。絶対時間ベースのビートスケジューリングによる長時間再生時のドリフト補正。
+ 
+ ## 技術スタック
+diff --git a/src/lib/components/ScoreSection.svelte b/src/lib/components/ScoreSection.svelte
+index f2da210..a1cc795 100644
+--- a/src/lib/components/ScoreSection.svelte
++++ b/src/lib/components/ScoreSection.svelte
+@@ -1,5 +1,6 @@
+ <script lang="ts">
+   import { playerState, getOriginalBeats, getDisplayBeat } from '$lib/stores/player.svelte';
++  import { scoreState } from '$lib/stores/score.svelte';
+   import { escapeHtml } from '$lib/utils/security';
+   
+   let viewMode = $state('both');
+@@ -209,6 +210,13 @@
+       upcoming: 'rgba(255,255,255,0.25)'
+     };
+ 
++    const GRADE_COLORS: Record<string, string> = {
++      perfect: 'var(--accent2)',
++      good: 'var(--accent)',
++      ok: 'var(--warn)',
++      miss: 'var(--danger)'
++    };
++
+     const rows: string[] = [];
+ 
+     for (let row = 0; row < totalRows; row++) {
+@@ -259,7 +267,14 @@
+         let noteState = 'upcoming';
+         if (i < playerState.currentNoteIdx) noteState = 'played';
+         else if (i === playerState.currentNoteIdx) noteState = 'current';
+-        const col = NOTE_COLORS[noteState];
++
++        let col = NOTE_COLORS[noteState];
++        if (noteState === 'played') {
++          const result = scoreState.noteResults[i];
++          if (result && result.grade) {
++            col = GRADE_COLORS[result.grade] || col;
++          }
++        }
+ 
+         if (y > staffTop + staffH + 1) {
+           for (let ly = staffTop + staffH + lineSpacing; ly <= y + 2; ly += lineSpacing)
+@@ -367,7 +382,14 @@
+         if (sidx === -1) return;
+ 
+         const y = 20 + sidx * 20;
+-        const state = i < playerState.currentNoteIdx ? 'tc-played' : i === playerState.currentNoteIdx ? 'tc-current' : '';
++        let state = i < playerState.currentNoteIdx ? 'tc-played' : i === playerState.currentNoteIdx ? 'tc-current' : '';
++        if (state === 'tc-played') {
++          const result = scoreState.noteResults[i];
++          if (result && result.grade) {
++            state = `tc-played-${result.grade}`;
++          }
++        }
++
+         const beatNum = (note.beat % timeSigNum) + 1;
+         const beatCol = i === playerState.currentNoteIdx ? 'var(--accent)' : 'var(--muted)';
+ 
+@@ -618,6 +640,10 @@
+   z-index: 2;
+ }
+ :global(.tab-note-val.tc-played) { color: rgba(58,245,160,0.7); }
++:global(.tab-note-val.tc-played-perfect) { color: var(--accent2); }
++:global(.tab-note-val.tc-played-good) { color: var(--accent); }
++:global(.tab-note-val.tc-played-ok) { color: var(--warn); }
++:global(.tab-note-val.tc-played-miss) { color: var(--danger); }
+ :global(.tab-note-val.tc-current) { 
+   color: var(--accent); font-weight: 700; 
+   text-shadow: 0 0 8px var(--accent);

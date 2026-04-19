@@ -53,10 +53,10 @@ export function setMasterVolume(vol: number) {
 
 export async function requestMic(deviceIdOrEvent?: string | Event) {
   let deviceId = typeof deviceIdOrEvent === 'string' ? deviceIdOrEvent : undefined;
-  // If no explicit deviceId provided, try to use the saved one
   if (!deviceId && audioState.selectedInputId) {
     deviceId = audioState.selectedInputId;
   }
+  
   try {
     if (audioState.micStream) {
       audioState.micStream.getTracks().forEach(track => track.stop());
@@ -73,10 +73,10 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
       }
     };
     let stream: MediaStream;
+    
     try {
       stream = await navigator.mediaDevices.getUserMedia(constraints);
     } catch (e) {
-      // If the saved device is no longer available, fallback to default
       if (deviceId) {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
@@ -88,16 +88,27 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
     audioState.micStream = stream;
 
     if (!audioState.audioCtx) {
-      audioState.audioCtx = new window.AudioContext({ sampleRate: 44100 });
+      // Voicemeeter等の環境下でサンプリングレートの不一致によるレンダラクラッシュを防ぐため、
+      // 原則として sampleRate はOS既定値に委ねる（指定しない）。
+      audioState.audioCtx = new window.AudioContext();
+      
       audioState.analyserNode = audioState.audioCtx.createAnalyser();
       audioState.analyserNode.fftSize = 2048;
       audioState.analyserNode.smoothingTimeConstant = 0.1;
       audioState.pitchBuf = new Float32Array(audioState.analyserNode.fftSize);
+    } else {
+      if (audioState.audioCtx.state === 'suspended') {
+        await audioState.audioCtx.resume();
+      }
     }
     
     const acWithSink = audioState.audioCtx as unknown as AudioContextWithSink;
     if (audioState.selectedOutputId && typeof acWithSink.setSinkId === 'function') {
-      try { await acWithSink.setSinkId(audioState.selectedOutputId); } catch(e) {}
+      try { 
+        await acWithSink.setSinkId(audioState.selectedOutputId); 
+      } catch(e) {
+        console.warn("setSinkId failed:", e);
+      }
     }
     
     audioState.micSource = audioState.audioCtx.createMediaStreamSource(stream);
