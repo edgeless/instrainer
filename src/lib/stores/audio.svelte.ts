@@ -106,8 +106,25 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
     if (audioState.selectedOutputId && typeof acWithSink.setSinkId === 'function') {
       try {
         await acWithSink.setSinkId(audioState.selectedOutputId);
+        
+        // 非同期クラッシュチェック
+        await new Promise(r => setTimeout(r, 200));
+        if (audioState.audioCtx.state === 'suspended' || audioState.audioCtx.state === 'closed') {
+          throw new Error("Renderer crashed");
+        }
       } catch(e) {
         console.warn("setSinkId failed:", e);
+        audioState.selectedOutputId = '';
+        saveDeviceId(STORAGE_KEY_OUTPUT, '');
+        if (typeof window !== 'undefined') {
+          window.alert("前回選択した出力デバイスの復元に失敗しました（クラッシュ検知）。OS標準の出力にリセットします。");
+        }
+        // クラッシュしたContextを一度破棄し、すぐに作り直す
+        try { await audioState.audioCtx.close(); } catch(err) {}
+        audioState.audioCtx = new window.AudioContext();
+        audioState.analyserNode = audioState.audioCtx.createAnalyser();
+        audioState.analyserNode.fftSize = 2048;
+        audioState.pitchBuf = new Float32Array(audioState.analyserNode.fftSize);
       }
     }
     
@@ -143,8 +160,26 @@ export async function setOutputDevice(deviceId: string) {
   const acWithSink = audioState.audioCtx as unknown as AudioContextWithSink;
   if (!acWithSink) return;
   if (typeof acWithSink.setSinkId === 'function') {
-    try { await acWithSink.setSinkId(deviceId); } catch (e) {
+    try { 
+      await acWithSink.setSinkId(deviceId); 
+      // 非同期クラッシュをチェック
+      await new Promise(r => setTimeout(r, 200));
+      if (audioState.audioCtx?.state === 'suspended' || audioState.audioCtx?.state === 'closed') {
+        throw new Error("Renderer crashed");
+      }
+    } catch (e) {
       console.warn("setSinkId error", e);
+      audioState.selectedOutputId = '';
+      saveDeviceId(STORAGE_KEY_OUTPUT, '');
+      if (typeof window !== 'undefined') {
+        window.alert("出力デバイスの変更に失敗したため、OS標準の出力にリセットしました。\n(※仮想オーディオデバイスなどで発生しやすいChromiumの既知の問題です)");
+      }
+      try { await acWithSink.setSinkId(''); } catch (err) {}
+      
+      // 完全にクラッシュした場合はコンテキストを閉じ、次回の再生等で再生成させる
+      if (audioState.audioCtx?.state === 'suspended' || audioState.audioCtx?.state === 'closed') {
+        try { await audioState.audioCtx.close(); } catch(err) {}
+      }
     }
   }
 }
