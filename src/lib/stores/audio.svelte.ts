@@ -106,7 +106,7 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
     if (audioState.selectedOutputId && typeof acWithSink.setSinkId === 'function') {
       try {
         await acWithSink.setSinkId(audioState.selectedOutputId);
-        
+
         // 非同期クラッシュチェック
         await new Promise(r => setTimeout(r, 200));
         if (audioState.audioCtx.state === 'suspended' || audioState.audioCtx.state === 'closed') {
@@ -160,8 +160,8 @@ export async function setOutputDevice(deviceId: string) {
   const acWithSink = audioState.audioCtx as unknown as AudioContextWithSink;
   if (!acWithSink) return;
   if (typeof acWithSink.setSinkId === 'function') {
-    try { 
-      await acWithSink.setSinkId(deviceId); 
+    try {
+      await acWithSink.setSinkId(deviceId);
       // 非同期クラッシュをチェック
       await new Promise(r => setTimeout(r, 200));
       if (audioState.audioCtx?.state === 'suspended' || audioState.audioCtx?.state === 'closed') {
@@ -175,7 +175,7 @@ export async function setOutputDevice(deviceId: string) {
         window.alert("出力デバイスの変更に失敗したため、OS標準の出力にリセットしました。\n(※仮想オーディオデバイスなどで発生しやすいChromiumの既知の問題です)");
       }
       try { await acWithSink.setSinkId(''); } catch (err) {}
-      
+
       // 完全にクラッシュした場合はコンテキストを閉じ、次回の再生等で再生成させる
       if (audioState.audioCtx?.state === 'suspended' || audioState.audioCtx?.state === 'closed') {
         try { await audioState.audioCtx.close(); } catch(err) {}

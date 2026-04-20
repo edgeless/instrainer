@@ -189,10 +189,12 @@
     const totalCount = centsHistory.filter(h => h.freq > 0).length;
 
     if (validSamples.length === 0 && totalCount > 0) {
+      console.warn(`[Analysis] Note ${idx} (${note.name}): All samples were marked as sliding. Falling back to all samples.`);
       validSamples = centsHistory.filter(h => h.freq > 0);
     }
 
     const centsArr = validSamples.map(h => freqToCents(h.freq, targetF) as number);
+    console.log(`[Analysis] Note ${idx}: total=${totalCount}, valid=${validSamples.length}, excluded=${totalCount - validSamples.length}`);
 
     if (centsArr.length === 0) {
       scoreState.noteResults[idx] = { grade: 'miss', combinedGrade: 'miss', pitchGrade: 'miss', timingGrade: 'miss', avgCents: null, timingDiffMs: 200 };
@@ -236,6 +238,7 @@
     }
 
     const excludedCount = history.filter(h => h.freq > 0).length - validHistory.length;
+    console.log(`[Free] Finalizing: total=${totalHistory.length}, valid=${validHistory.length}, excluded=${excludedCount}`);
 
     const allCents = validHistory.map(h => {
       const targetF = midiToFreq(freqToMidi(h.freq));
@@ -270,6 +273,7 @@
   }
 
   function runPostAnalysis() {
+    console.log(`[Analysis] Running post-analysis for ${scoreState.recordedSamples.length} notes`);
     for (let i = 0; i < scoreState.recordedSamples.length; i++) {
       const rs = scoreState.recordedSamples[i];
       const note = playerState.song.notes[rs.noteIdx];
@@ -281,6 +285,7 @@
       const totalCount = samples.filter(h => h.freq > 0).length;
 
       if (validSamples.length === 0 && totalCount > 0) {
+        console.warn(`[Analysis] Post: Note ${rs.noteIdx} (${note.name}) has 0 valid samples. Falling back.`);
         validSamples = samples.filter(h => h.freq > 0);
       }
 
