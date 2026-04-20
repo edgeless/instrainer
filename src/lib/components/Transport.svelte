@@ -109,13 +109,29 @@
       const isFree = playerState.isFreeMode;
       const prevNoteIdx = playerState.currentNoteIdx;
       if (!isFree && targetNoteIdx !== prevNoteIdx) {
-        if (playerState.isRecording && scoreState.currentCentsHistory.length > 0) {
-          scoreState.recordedSamples.push({
-            noteIdx: prevNoteIdx,
-            loopIdx: playerState.currentLoop,
-            samples: [...scoreState.currentCentsHistory]
-          });
-          gradeNote(prevNoteIdx, [...scoreState.currentCentsHistory]);
+        if (playerState.isRecording) {
+          // targetNoteIdx まで飛んだ場合、間の音符（ラグ等でスキップされた音符）も全て未評価(miss)として処理する
+          const start = prevNoteIdx;
+          const end = targetNoteIdx > prevNoteIdx ? targetNoteIdx : prevNoteIdx + 1; // 巻き戻りの場合は prevNoteIdx のみを評価
+
+          for (let i = start; i < end; i++) {
+            if (i === prevNoteIdx) {
+              scoreState.recordedSamples.push({
+                noteIdx: i,
+                loopIdx: playerState.currentLoop,
+                samples: [...scoreState.currentCentsHistory]
+              });
+              gradeNote(i, [...scoreState.currentCentsHistory]);
+            } else {
+              // Miss for skipped notes
+              scoreState.recordedSamples.push({
+                noteIdx: i,
+                loopIdx: playerState.currentLoop,
+                samples: []
+              });
+              gradeNote(i, []);
+            }
+          }
           scoreState.currentCentsHistory = [];
         }
         playerState.currentNoteIdx = targetNoteIdx;
@@ -161,8 +177,9 @@
   }
 
   function gradeNote(idx: number, centsHistory: { freq: number, isSliding: boolean, time: number }[]) {
+    // 無音やデータ欠落時は最も遅れた扱い（右ズレ）にするため timingDiffMs を 200 に設定
     if (!centsHistory || centsHistory.length === 0) {
-      scoreState.noteResults[idx] = { grade: 'miss', combinedGrade: 'miss', pitchGrade: 'miss', timingGrade: 'miss', avgCents: null, timingDiffMs: null };
+      scoreState.noteResults[idx] = { grade: 'miss', combinedGrade: 'miss', pitchGrade: 'miss', timingGrade: 'miss', avgCents: null, timingDiffMs: 200 };
       return;
     }
     const note = playerState.song.notes[idx];
@@ -180,7 +197,7 @@
     console.log(`[Analysis] Note ${idx}: total=${totalCount}, valid=${validSamples.length}, excluded=${totalCount - validSamples.length}`);
 
     if (centsArr.length === 0) {
-      scoreState.noteResults[idx] = { grade: 'miss', combinedGrade: 'miss', pitchGrade: 'miss', timingGrade: 'miss', avgCents: null, timingDiffMs: null };
+      scoreState.noteResults[idx] = { grade: 'miss', combinedGrade: 'miss', pitchGrade: 'miss', timingGrade: 'miss', avgCents: null, timingDiffMs: 200 };
       return;
     }
     const sorted = [...centsArr].sort((a, b) => a - b);
@@ -276,7 +293,7 @@
       const centsArr = validSamples.map(h => freqToCents(h.freq, targetF) as number);
 
       if (centsArr.length === 0) {
-        scoreState.noteResults[rs.noteIdx] = { grade: 'miss', combinedGrade: 'miss', pitchGrade: 'miss', timingGrade: 'miss', avgCents: null, timingDiffMs: null };
+        scoreState.noteResults[rs.noteIdx] = { grade: 'miss', combinedGrade: 'miss', pitchGrade: 'miss', timingGrade: 'miss', avgCents: null, timingDiffMs: 200 };
         continue;
       }
       const s = [...centsArr].sort((a, b) => a - b);
