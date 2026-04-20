@@ -36,7 +36,7 @@ export const playerState = $state<PlayerState>({
   currentSongKey: initialImported ? 'imported' : 'c_major',
   song: (initialImported || SONGS['c_major']) as Song,
   currentNoteIdx: 0,
-  currentBeat: -4,
+  currentBeat: -((initialImported || SONGS['c_major']) as Song).timeSignature?.[0]! || -4,
   isPlaying: false,
   isRecording: false,
   tolerance: 20, // cents
@@ -70,7 +70,7 @@ export function setSong(arg: string | Song) {
   }
   
   playerState.currentNoteIdx = 0;
-  playerState.currentBeat = -4;
+  playerState.currentBeat = -getCountInBeats();
   playerState.currentLoop = 1;
 }
 
@@ -92,6 +92,10 @@ export function getTotalDurationSeconds() {
   return (totalBeats / playerState.song.bpm) * 60;
 }
 
+export function getCountInBeats() {
+  return playerState.song.timeSignature?.[0] || 4;
+}
+
 /**
  * 現在の再生時間から表示用のビート位置を計算して返す。
  * 再生中でない場合は現在のビート位置を返す。
@@ -110,9 +114,8 @@ export function getDisplayBeat() {
       if (playerState.isFreeMode) {
         return elapsedMs / (secPerBeat * 1000);
       } else {
-        // TODO: 4拍固定になっているため、4/4拍子以外(3/4等)では不整合が起きる。
-        // 今後 playerState.song.timeSignature[0] を参照するよう修正が必要。
-        return (elapsedMs / (secPerBeat * 1000)) - 4; // offset by 4 for count-in
+        const countIn = getCountInBeats();
+        return (elapsedMs / (secPerBeat * 1000)) - countIn;
       }
     }
   }

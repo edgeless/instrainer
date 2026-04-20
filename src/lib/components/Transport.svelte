@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds, getDisplayBeat } from '$lib/stores/player.svelte';
+  import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds, getDisplayBeat, getCountInBeats } from '$lib/stores/player.svelte';
   import { scoreState, resetScore } from '$lib/stores/score.svelte';
   import { audioState, playClick, playDemoNote, stopDemoNotes, setMasterVolume } from '$lib/stores/audio.svelte';
   import { midiToFreq, freqToCents, freqToMidi, getGrade, getTimingGrade, getCombinedGrade } from '$lib/utils/pitch';
@@ -80,7 +80,8 @@
 
       if (audioState.audioCtx) {
         if (playerState.currentBeat < 0) {
-          playClick(playerState.currentBeat === -4);
+          const countIn = getCountInBeats();
+          playClick(playerState.currentBeat === -countIn);
         } else if (playerState.metronomeOn) {
           // リピート時は元のビート位置に対して小節頭を判定
           const beatInLoop = originalBeats > 0 ? playerState.currentBeat % originalBeats : playerState.currentBeat;
@@ -145,7 +146,8 @@
         if (playerState.isFreeMode) {
           expectedNextBeatTimeMs = playerState.playbackStartTimeMs + (playerState.currentBeat * secPerBeat * 1000);
         } else {
-          expectedNextBeatTimeMs = playerState.playbackStartTimeMs + ((playerState.currentBeat + 4) * secPerBeat * 1000);
+          const countIn = getCountInBeats();
+          expectedNextBeatTimeMs = playerState.playbackStartTimeMs + ((playerState.currentBeat + countIn) * secPerBeat * 1000);
         }
 
         const now = performance.now();
@@ -192,9 +194,10 @@
       const firstSampleTime = validSamples[0].time;
       const originalBeats = getOriginalBeats();
       const currentLoopOffset = (playerState.currentLoop - 1) * originalBeats;
-      // When not in free mode, the count-in (4 beats) is part of playbackStartTimeMs offset.
-      // So expected time is playbackStartTimeMs + (note.beat + 4) * secPerBeat.
-      const beatOffset = playerState.isFreeMode ? note.beat + currentLoopOffset : note.beat + currentLoopOffset + 4;
+      const countIn = getCountInBeats();
+      // When not in free mode, the count-in is part of playbackStartTimeMs offset.
+      // So expected time is playbackStartTimeMs + (note.beat + countIn) * secPerBeat.
+      const beatOffset = playerState.isFreeMode ? note.beat + currentLoopOffset : note.beat + currentLoopOffset + countIn;
       const expectedNoteTimeMs = playerState.playbackStartTimeMs + (beatOffset * (60 / playerState.song.bpm) * 1000);
 
       timingDiffMs = firstSampleTime - expectedNoteTimeMs;
@@ -290,7 +293,8 @@
         // In post analysis, calculate expected time
         const originalBeats = getOriginalBeats();
         const loopOffset = (rs.loopIdx - 1) * originalBeats;
-        const beatOffset = playerState.isFreeMode ? note.beat + loopOffset : note.beat + loopOffset + 4;
+        const countIn = getCountInBeats();
+        const beatOffset = playerState.isFreeMode ? note.beat + loopOffset : note.beat + loopOffset + countIn;
         const expectedNoteTimeMs = playerState.playbackStartTimeMs + (beatOffset * (60 / playerState.song.bpm) * 1000);
         timingDiffMs = firstSampleTime - expectedNoteTimeMs;
         timingGrade = getTimingGrade(Math.abs(timingDiffMs));
@@ -339,7 +343,8 @@
     if (playerState.isFreeMode) {
       playerState.playbackStartTimeMs = performance.now() - (playerState.currentBeat * secPerBeat * 1000);
     } else {
-      playerState.playbackStartTimeMs = performance.now() - ((playerState.currentBeat + 4) * secPerBeat * 1000);
+      const countIn = getCountInBeats();
+      playerState.playbackStartTimeMs = performance.now() - ((playerState.currentBeat + countIn) * secPerBeat * 1000);
     }
 
     if (audioState.recordedAudioUrl) {
@@ -397,7 +402,8 @@
     if (beatInterval) clearTimeout(beatInterval);
     stopDemoNotes();
     playerState.currentNoteIdx = 0;
-    playerState.currentBeat = -4;
+    const countIn = getCountInBeats();
+    playerState.currentBeat = -countIn;
     playerState.currentLoop = 1;
     playerState.status = 'idle';
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
@@ -502,8 +508,9 @@
       playerState.currentBeat = 0; // フリーモードは即時開始
       playerState.playbackStartTimeMs = performance.now();
     } else {
-      playerState.currentBeat = -4;
-      playerState.playbackStartTimeMs = performance.now() + (4 * secPerBeat * 1000);
+      const countIn = getCountInBeats();
+      playerState.currentBeat = -countIn;
+      playerState.playbackStartTimeMs = performance.now() + (countIn * secPerBeat * 1000);
     }
     scheduleBeat();
   }
@@ -556,7 +563,8 @@
       if (playerState.isFreeMode) {
         playerState.playbackStartTimeMs = performance.now() - (targetBeat * secPerBeat * 1000);
       } else {
-        playerState.playbackStartTimeMs = performance.now() - ((targetBeat + 4) * secPerBeat * 1000);
+        const countIn = getCountInBeats();
+        playerState.playbackStartTimeMs = performance.now() - ((targetBeat + countIn) * secPerBeat * 1000);
       }
     }
 

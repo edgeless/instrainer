@@ -44,7 +44,8 @@
     void playerState.isPlaying;
     void playerState.isRecording;
     void playerState.currentNoteIdx;
-    void scoreState.noteResults.length; // Track noteResults explicitly for color updates
+    // noteResultsの要素自体の更新（lengthが変わらない場合）も追跡するため、スプレッド展開して参照
+    void [...scoreState.noteResults];
     requestAnimationFrame(renderScore);
   });
 
@@ -276,6 +277,7 @@
             if (result.grade) col = GRADE_COLORS[result.grade] || col;
             // Shift x coordinate based on timingDiffMs
             if (result.timingDiffMs !== null && result.timingDiffMs !== undefined) {
+              // 150msのズレが10pxのシフトになるように計算（上限±12px）
               const shift = Math.max(-12, Math.min(12, result.timingDiffMs / 15));
               x += shift;
             }
@@ -394,6 +396,7 @@
           if (result) {
             if (result.grade) state = `tc-played-${result.grade}`;
             if (result.timingDiffMs !== null && result.timingDiffMs !== undefined) {
+              // 150msのズレが10pxのシフトになるように計算（上限±12px）
               const shift = Math.max(-12, Math.min(12, result.timingDiffMs / 15));
               x += shift;
             }
