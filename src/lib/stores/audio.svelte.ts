@@ -1,7 +1,6 @@
 import { midiToFreq } from '$lib/utils/pitch';
 
 const STORAGE_KEY_INPUT = 'audio_input_device_id';
-const STORAGE_KEY_OUTPUT = 'audio_output_device_id';
 const STORAGE_KEY_VOLUME = 'audio_master_volume';
 
 function loadSavedDeviceId(key: string): string {
@@ -28,7 +27,6 @@ export const audioState = $state<{
   micGranted: boolean;
   devices: MediaDeviceInfo[];
   selectedInputId: string;
-  selectedOutputId: string;
   recordedAudioUrl: string | null;
   masterVolume: number;
 }>({
@@ -41,7 +39,6 @@ export const audioState = $state<{
   micGranted: false,
   devices: [],
   selectedInputId: loadSavedDeviceId(STORAGE_KEY_INPUT),
-  selectedOutputId: loadSavedDeviceId(STORAGE_KEY_OUTPUT),
   recordedAudioUrl: null,
   masterVolume: Number(loadSavedDeviceId(STORAGE_KEY_VOLUME) || '1')
 });
@@ -87,10 +84,15 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
     }
     audioState.micStream = stream;
 
-    if (!audioState.audioCtx) {
+    if (!audioState.audioCtx || audioState.audioCtx.state === 'closed') {
       // Voicemeeter等の環境下でサンプリングレートの不一致によるレンダラクラッシュを防ぐため、
       // 原則として sampleRate はOS既定値に委ねる（指定しない）。
       audioState.audioCtx = new window.AudioContext();
+      
+      const ac = audioState.audioCtx;
+      ac.onstatechange = () => {
+        console.warn(`[Audio Debug] AudioContext state changed to: ${ac.state}`);
+      };
 
       audioState.analyserNode = audioState.audioCtx.createAnalyser();
       audioState.analyserNode.fftSize = 2048;
@@ -102,14 +104,7 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
       }
     }
     
-    const acWithSink = audioState.audioCtx as unknown as AudioContextWithSink;
-    if (audioState.selectedOutputId && typeof acWithSink.setSinkId === 'function') {
-      try {
-        await acWithSink.setSinkId(audioState.selectedOutputId);
-      } catch(e) {
-        console.warn("setSinkId failed:", e);
-      }
-    }
+
     
     audioState.micSource = audioState.audioCtx.createMediaStreamSource(stream);
     audioState.micSource.connect(audioState.analyserNode!);
@@ -137,17 +132,7 @@ export async function updateDevices() {
   audioState.devices = devices.filter(d => d.kind === 'audioinput' || d.kind === 'audiooutput');
 }
 
-export async function setOutputDevice(deviceId: string) {
-  audioState.selectedOutputId = deviceId;
-  saveDeviceId(STORAGE_KEY_OUTPUT, deviceId);
-  const acWithSink = audioState.audioCtx as unknown as AudioContextWithSink;
-  if (!acWithSink) return;
-  if (typeof acWithSink.setSinkId === 'function') {
-    try { await acWithSink.setSinkId(deviceId); } catch (e) {
-      console.warn("setSinkId error", e);
-    }
-  }
-}
+
 
 export function playClick(accent: boolean) {
   const ac = audioState.audioCtx;
