@@ -377,7 +377,9 @@
         lastLoadedAudioUrl = audioState.recordedAudioUrl;
       }
 
-
+      if (typeof playbackAudio.setSinkId === 'function' && audioState.selectedOutputId) {
+         playbackAudio.setSinkId(audioState.selectedOutputId).catch(() => {});
+      }
 
       // 再生位置を現在のビートの経過時間に合わせる
       const offsetSeconds = Math.max(0, playerState.currentBeat * secPerBeat);

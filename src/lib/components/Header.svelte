@@ -1,6 +1,6 @@
 <script lang="ts">
   import { playerState, setSong } from '$lib/stores/player.svelte';
-  import { audioState, requestMic } from '$lib/stores/audio.svelte';
+  import { audioState, requestMic, setOutputDevice } from '$lib/stores/audio.svelte';
   import { SONGS } from '$lib/utils/songs';
   import { parseIRealURI } from '$lib/utils/ireal';
   import type Transport from './Transport.svelte';
@@ -19,6 +19,11 @@
   function onInputDeviceChange(e: Event) {
     const select = e.target as HTMLSelectElement;
     requestMic(select.value);
+  }
+
+  function onOutputDeviceChange(e: Event) {
+    const select = e.target as HTMLSelectElement;
+    setOutputDevice(select.value);
   }
 
   function onBpmWheel(e: WheelEvent) {
@@ -66,6 +71,7 @@
   });
 
   let audioInputs = $derived(audioState.devices.filter(d => d.kind === 'audioinput'));
+  let audioOutputs = $derived(audioState.devices.filter(d => d.kind === 'audiooutput'));
 
   function onDemoToggle() {
     if (transportRef && typeof transportRef.toggleDemoPlay === 'function') {
@@ -84,7 +90,13 @@
         {/each}
       </select>
     {/if}
-
+    {#if audioOutputs.length > 0}
+      <select class="device-sel" value={audioState.selectedOutputId} onchange={onOutputDeviceChange} title="🔊 {i18n.outputDev}">
+        {#each audioOutputs as device, i}
+          <option value={device.deviceId}>{device.label || `${i18n.outputDev} ${i+1}`}</option>
+        {/each}
+      </select>
+    {/if}
     <div class="song-box">
       <select class="song-sel" value={playerState.currentSongKey} onchange={onSongChange} disabled={playerState.isFreeMode}>
         {#each Object.entries(SONGS) as [key, s]}
