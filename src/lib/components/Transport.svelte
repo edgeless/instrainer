@@ -103,14 +103,14 @@
       if (targetNoteIdx >= playerState.song.notes.length || playerState.song.notes[targetNoteIdx]?.beat > beatInLoop && safeLowerBound > beatInLoop) {
         targetNoteIdx = 0;
       }
-      // ビートが進んでいる間、中間地点を過ぎたらインデックスを進める
+      // ビートが進んでいる間、次の音符の「少し前（transitionBeat）」を過ぎたらインデックスを進める
       while (
         targetNoteIdx + 1 < playerState.song.notes.length
       ) {
         const nextB = playerState.song.notes[targetNoteIdx + 1].beat;
         const curB = playerState.song.notes[targetNoteIdx].beat;
-        const midpoint = curB + (nextB - curB) / 2;
-        if (midpoint <= beatInLoop) {
+        const transitionBeat = nextB - Math.min(0.25, (nextB - curB) / 2);
+        if (beatInLoop >= transitionBeat) {
           targetNoteIdx++;
         } else {
           break;
@@ -195,12 +195,33 @@
     }
     const note = playerState.song.notes[idx];
     const targetF = midiToFreq(note.midi);
+    const prevNote = idx > 0 ? playerState.song.notes[idx - 1] : null;
+    const prevTargetF = prevNote ? midiToFreq(prevNote.midi) : null;
 
-    let validSamples = centsHistory.filter(h => h.freq > 0 && !h.isSliding);
-    const totalCount = centsHistory.filter(h => h.freq > 0).length;
+    let expectedNoteTimeMs: number | null = null;
+    if (playerState.playbackStartTimeMs !== null) {
+      const originalBeats = getOriginalBeats();
+      const currentLoopOffset = (playerState.currentLoop - 1) * originalBeats;
+      const beatOffset = note.beat + currentLoopOffset;
+      expectedNoteTimeMs = playerState.playbackStartTimeMs + (beatOffset * (60 / playerState.song.bpm) * 1000);
+    }
+
+    let filteredHistory = [];
+    for (const h of centsHistory) {
+      if (expectedNoteTimeMs !== null && h.time < expectedNoteTimeMs && prevTargetF) {
+        const cTarget = Math.abs(freqToCents(h.freq, targetF) ?? 9999);
+        const cPrev = Math.abs(freqToCents(h.freq, prevTargetF) ?? 9999);
+        if (cPrev < cTarget && cPrev < 200) continue; // 前の音符の余韻であると判断して除外
+      }
+      filteredHistory.push(h);
+    }
+    if (filteredHistory.length === 0) filteredHistory = centsHistory;
+
+    let validSamples = filteredHistory.filter(h => h.freq > 0 && !h.isSliding);
+    const totalCount = filteredHistory.filter(h => h.freq > 0).length;
 
     if (validSamples.length === 0 && totalCount > 0) {
-      validSamples = centsHistory.filter(h => h.freq > 0);
+      validSamples = filteredHistory.filter(h => h.freq > 0);
     }
 
     const centsArr = validSamples.map(h => freqToCents(h.freq, targetF) as number);
@@ -216,15 +237,8 @@
     let timingGrade: 'miss' | 'ok' | 'good' | 'perfect' = 'miss';
     let timingDiffMs: number | null = null;
 
-    if (playerState.playbackStartTimeMs !== null && validSamples.length > 0) {
+    if (expectedNoteTimeMs !== null && validSamples.length > 0) {
       const firstSampleTime = validSamples[0].time;
-      const originalBeats = getOriginalBeats();
-      const currentLoopOffset = (playerState.currentLoop - 1) * originalBeats;
-      // playbackStartTimeMs is already the absolute time of beat 0 (it is set to now + countIn * secPerBeat).
-      // Therefore, the expected time of a note is simply playbackStartTimeMs + note.beat * secPerBeat.
-      const beatOffset = note.beat + currentLoopOffset;
-      const expectedNoteTimeMs = playerState.playbackStartTimeMs + (beatOffset * (60 / playerState.song.bpm) * 1000);
-
       timingDiffMs = firstSampleTime - expectedNoteTimeMs;
       timingGrade = getTimingGrade(Math.abs(timingDiffMs));
     }
@@ -286,13 +300,36 @@
       const note = playerState.song.notes[rs.noteIdx];
       if (!note) continue;
       const targetF = midiToFreq(note.midi);
-
       const samples = rs.samples as { freq: number, isSliding: boolean, time: number }[];
-      let validSamples = samples.filter(h => h.freq > 0 && !h.isSliding);
-      const totalCount = samples.filter(h => h.freq > 0).length;
+
+      const prevNote = rs.noteIdx > 0 ? playerState.song.notes[rs.noteIdx - 1] : null;
+      const prevTargetF = prevNote ? midiToFreq(prevNote.midi) : null;
+
+      let expectedNoteTimeMs: number | null = null;
+      if (playerState.playbackStartTimeMs !== null) {
+        const originalBeats = getOriginalBeats();
+        const loopOffset = (rs.loopIdx - 1) * originalBeats;
+        const countIn = getCountInBeats();
+        const beatOffset = playerState.isFreeMode ? note.beat + loopOffset : note.beat + loopOffset + countIn;
+        expectedNoteTimeMs = playerState.playbackStartTimeMs + (beatOffset * (60 / playerState.song.bpm) * 1000);
+      }
+
+      let filteredSamples = [];
+      for (const h of samples) {
+        if (expectedNoteTimeMs !== null && h.time < expectedNoteTimeMs && prevTargetF) {
+          const cTarget = Math.abs(freqToCents(h.freq, targetF) ?? 9999);
+          const cPrev = Math.abs(freqToCents(h.freq, prevTargetF) ?? 9999);
+          if (cPrev < cTarget && cPrev < 200) continue;
+        }
+        filteredSamples.push(h);
+      }
+      if (filteredSamples.length === 0) filteredSamples = samples;
+
+      let validSamples = filteredSamples.filter(h => h.freq > 0 && !h.isSliding);
+      const totalCount = filteredSamples.filter(h => h.freq > 0).length;
 
       if (validSamples.length === 0 && totalCount > 0) {
-        validSamples = samples.filter(h => h.freq > 0);
+        validSamples = filteredSamples.filter(h => h.freq > 0);
       }
 
       const centsArr = validSamples.map(h => freqToCents(h.freq, targetF) as number);
