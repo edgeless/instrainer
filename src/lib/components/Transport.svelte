@@ -79,14 +79,16 @@
       }
 
       if (audioState.audioCtx) {
-        if (playerState.currentBeat < 0) {
-          const countIn = getCountInBeats();
-          playClick(playerState.currentBeat === -countIn);
-        } else if (playerState.metronomeOn) {
-          // リピート時は元のビート位置に対して小節頭を判定
-          const beatInLoop = originalBeats > 0 ? playerState.currentBeat % originalBeats : playerState.currentBeat;
-          const beatsPerMeasure = (playerState.song.timeSignature ?? [4, 4])[0];
-          playClick(beatInLoop % beatsPerMeasure === 0);
+        if (playerState.currentBeat % 1 === 0) {
+          if (playerState.currentBeat < 0) {
+            const countIn = getCountInBeats();
+            playClick(playerState.currentBeat === -countIn);
+          } else if (playerState.metronomeOn) {
+            // リピート時は元のビート位置に対して小節頭を判定
+            const beatInLoop = originalBeats > 0 ? playerState.currentBeat % originalBeats : playerState.currentBeat;
+            const beatsPerMeasure = (playerState.song.timeSignature ?? [4, 4])[0];
+            playClick(beatInLoop % beatsPerMeasure === 0);
+          }
         }
       }
 
@@ -94,16 +96,25 @@
       const beatInLoop = originalBeats > 0 ? playerState.currentBeat % originalBeats : playerState.currentBeat;
       let targetNoteIdx = playerState.currentNoteIdx;
 
-      // インデックスが範囲外、またはビートが現在のノートより前の場合は最初から（シークやループ時、曲の変更時）
-      if (targetNoteIdx >= playerState.song.notes.length || playerState.song.notes[targetNoteIdx]?.beat > beatInLoop) {
+      // インデックスが範囲外、またはビートが現在のノートの許容下限より前の場合は最初から（シークやループ時、曲の変更時）
+      const currBeatForReset = playerState.song.notes[targetNoteIdx]?.beat ?? 0;
+      const prevBeatForReset = targetNoteIdx > 0 ? playerState.song.notes[targetNoteIdx - 1].beat : currBeatForReset;
+      const safeLowerBound = targetNoteIdx > 0 ? prevBeatForReset + (currBeatForReset - prevBeatForReset) / 2 : 0;
+      if (targetNoteIdx >= playerState.song.notes.length || playerState.song.notes[targetNoteIdx]?.beat > beatInLoop && safeLowerBound > beatInLoop) {
         targetNoteIdx = 0;
       }
-      // ビートが進んでいる間、インデックスを進める
+      // ビートが進んでいる間、中間地点を過ぎたらインデックスを進める
       while (
-        targetNoteIdx + 1 < playerState.song.notes.length &&
-        playerState.song.notes[targetNoteIdx + 1].beat <= beatInLoop
+        targetNoteIdx + 1 < playerState.song.notes.length
       ) {
-        targetNoteIdx++;
+        const nextB = playerState.song.notes[targetNoteIdx + 1].beat;
+        const curB = playerState.song.notes[targetNoteIdx].beat;
+        const midpoint = curB + (nextB - curB) / 2;
+        if (midpoint <= beatInLoop) {
+          targetNoteIdx++;
+        } else {
+          break;
+        }
       }
 
       const isFree = playerState.isFreeMode;
@@ -143,7 +154,7 @@
         let checkIdx = playerState.currentNoteIdx;
         while (checkIdx < playerState.song.notes.length) {
           const note = playerState.song.notes[checkIdx];
-          if (note.beat >= beatInLoop + 1) break; // 次のビート以降なら終了
+          if (note.beat >= beatInLoop + 0.25) break; // 次の0.25ビート以降なら終了
 
           if (note.beat >= beatInLoop) {
             const durationSec = note.dur * (60 / playerState.song.bpm);
@@ -154,7 +165,7 @@
         }
       }
 
-      playerState.currentBeat++;
+      playerState.currentBeat += 0.25;
 
       // Calculate absolute time for next beat to prevent timing drift
       if (playerState.playbackStartTimeMs !== null) {
@@ -170,7 +181,7 @@
         const delayMs = Math.max(0, expectedNextBeatTimeMs - now);
         beatInterval = setTimeout(tick, delayMs);
       } else {
-        beatInterval = setTimeout(tick, secPerBeat * 1000);
+        beatInterval = setTimeout(tick, secPerBeat * 1000 * 0.25);
       }
     }
     tick();
