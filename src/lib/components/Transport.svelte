@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds, getDisplayBeat } from '$lib/stores/player.svelte';
+  import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds, getDisplayBeat, getCountInBeats } from '$lib/stores/player.svelte';
   import { scoreState, resetScore } from '$lib/stores/score.svelte';
   import { audioState, playClick, playDemoNote, stopDemoNotes, setMasterVolume } from '$lib/stores/audio.svelte';
   import { midiToFreq, freqToCents, freqToMidi, getGrade, getTimingGrade, getCombinedGrade } from '$lib/utils/pitch';
@@ -80,7 +80,7 @@
 
       if (audioState.audioCtx) {
         if (playerState.currentBeat < 0) {
-          playClick(playerState.currentBeat === -4);
+          playClick(playerState.currentBeat === -getCountInBeats());
         } else if (playerState.metronomeOn) {
           // リピート時は元のビート位置に対して小節頭を判定
           const beatInLoop = originalBeats > 0 ? playerState.currentBeat % originalBeats : playerState.currentBeat;
@@ -145,7 +145,7 @@
         if (playerState.isFreeMode) {
           expectedNextBeatTimeMs = playerState.playbackStartTimeMs + (playerState.currentBeat * secPerBeat * 1000);
         } else {
-          expectedNextBeatTimeMs = playerState.playbackStartTimeMs + ((playerState.currentBeat + 4) * secPerBeat * 1000);
+          expectedNextBeatTimeMs = playerState.playbackStartTimeMs + ((playerState.currentBeat + getCountInBeats()) * secPerBeat * 1000);
         }
 
         const now = performance.now();
@@ -332,7 +332,7 @@
     if (playerState.isFreeMode) {
       playerState.playbackStartTimeMs = performance.now() - (playerState.currentBeat * secPerBeat * 1000);
     } else {
-      playerState.playbackStartTimeMs = performance.now() - ((playerState.currentBeat + 4) * secPerBeat * 1000);
+      playerState.playbackStartTimeMs = performance.now() - ((playerState.currentBeat + getCountInBeats()) * secPerBeat * 1000);
     }
 
     if (audioState.recordedAudioUrl) {
@@ -390,7 +390,7 @@
     if (beatInterval) clearTimeout(beatInterval);
     stopDemoNotes();
     playerState.currentNoteIdx = 0;
-    playerState.currentBeat = -4;
+    playerState.currentBeat = -getCountInBeats();
     playerState.currentLoop = 1;
     playerState.status = 'idle';
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
@@ -495,8 +495,8 @@
       playerState.currentBeat = 0; // フリーモードは即時開始
       playerState.playbackStartTimeMs = performance.now();
     } else {
-      playerState.currentBeat = -4;
-      playerState.playbackStartTimeMs = performance.now() + (4 * secPerBeat * 1000);
+      playerState.currentBeat = -getCountInBeats();
+      playerState.playbackStartTimeMs = performance.now() + (getCountInBeats() * secPerBeat * 1000);
     }
     scheduleBeat();
   }
@@ -549,7 +549,7 @@
       if (playerState.isFreeMode) {
         playerState.playbackStartTimeMs = performance.now() - (targetBeat * secPerBeat * 1000);
       } else {
-        playerState.playbackStartTimeMs = performance.now() - ((targetBeat + 4) * secPerBeat * 1000);
+        playerState.playbackStartTimeMs = performance.now() - ((targetBeat + getCountInBeats()) * secPerBeat * 1000);
       }
     }
 

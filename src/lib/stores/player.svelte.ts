@@ -32,11 +32,17 @@ if (browser) {
   }
 }
 
+function calculateCountIn(song: Song) {
+  return song.timeSignature?.[0] ?? 4;
+}
+
+const initialSong = (initialImported || SONGS['c_major']) as Song;
+
 export const playerState = $state<PlayerState>({
   currentSongKey: initialImported ? 'imported' : 'c_major',
-  song: (initialImported || SONGS['c_major']) as Song,
+  song: initialSong,
   currentNoteIdx: 0,
-  currentBeat: -4,
+  currentBeat: -calculateCountIn(initialSong),
   isPlaying: false,
   isRecording: false,
   tolerance: 20, // cents
@@ -49,6 +55,10 @@ export const playerState = $state<PlayerState>({
   playbackStartTimeMs: null,
   isDemoPlaying: false,
 });
+
+export function getCountInBeats() {
+  return calculateCountIn(playerState.song);
+}
 
 export function setSong(arg: string | Song) {
   if (typeof arg === 'string') {
@@ -70,7 +80,7 @@ export function setSong(arg: string | Song) {
   }
   
   playerState.currentNoteIdx = 0;
-  playerState.currentBeat = -4;
+  playerState.currentBeat = -getCountInBeats();
   playerState.currentLoop = 1;
 }
 
@@ -110,9 +120,7 @@ export function getDisplayBeat() {
       if (playerState.isFreeMode) {
         return elapsedMs / (secPerBeat * 1000);
       } else {
-        // TODO: 4拍固定になっているため、4/4拍子以外(3/4等)では不整合が起きる。
-        // 今後 playerState.song.timeSignature[0] を参照するよう修正が必要。
-        return (elapsedMs / (secPerBeat * 1000)) - 4; // offset by 4 for count-in
+        return (elapsedMs / (secPerBeat * 1000)) - getCountInBeats();
       }
     }
   }
