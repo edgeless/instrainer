@@ -271,7 +271,7 @@
       // これにより、弾き始めが sliding 判定された場合でも正確なタイミングを取得できる。
       const firstSample = filteredHistory.find(h => h.freq > 0);
       if (firstSample) {
-        timingDiffMs = firstSample.time - expectedNoteTimeMs;
+        timingDiffMs = (firstSample.time - audioState.latencyCompensationMs) - expectedNoteTimeMs;
         timingGrade = getTimingGrade(Math.abs(timingDiffMs));
       }
     }
@@ -414,7 +414,7 @@
         const countIn = getCountInBeats();
         const beatOffset = playerState.isFreeMode ? note.beat + loopOffset : note.beat + loopOffset + countIn;
         const expectedNoteTimeMs = playerState.playbackStartTimeMs + (beatOffset * (60 / playerState.song.bpm) * 1000);
-        timingDiffMs = firstSampleTime - expectedNoteTimeMs;
+        timingDiffMs = (firstSampleTime - audioState.latencyCompensationMs) - expectedNoteTimeMs;
         timingGrade = getTimingGrade(Math.abs(timingDiffMs));
       }
 

@@ -31,6 +31,7 @@ export const audioState = $state<{
   selectedOutputId: string;
   recordedAudioUrl: string | null;
   masterVolume: number;
+  latencyCompensationMs: number;
 }>({
   audioCtx: null,
   analyserNode: null,
@@ -43,7 +44,8 @@ export const audioState = $state<{
   selectedInputId: loadSavedDeviceId(STORAGE_KEY_INPUT),
   selectedOutputId: loadSavedDeviceId(STORAGE_KEY_OUTPUT),
   recordedAudioUrl: null,
-  masterVolume: Number(loadSavedDeviceId(STORAGE_KEY_VOLUME) || '1')
+  masterVolume: Number(loadSavedDeviceId(STORAGE_KEY_VOLUME) || '1'),
+  latencyCompensationMs: 250
 });
 
 export function setMasterVolume(vol: number) {
