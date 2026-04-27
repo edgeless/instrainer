@@ -295,10 +295,14 @@
 
     const excludedCount = history.filter(h => h.freq > 0).length - validHistory.length;
 
-    const allCents = validHistory.map(h => {
+    const allCents = validHistory.reduce((acc, h) => {
       const targetF = midiToFreq(freqToMidi(h.freq));
-      return freqToCents(h.freq, targetF);
-    }).filter(c => c !== null) as number[];
+      const c = freqToCents(h.freq, targetF);
+      if (c !== null) {
+        acc.push(c);
+      }
+      return acc;
+    }, [] as number[]);
 
     if (allCents.length === 0) {
       scoreState.freeModeStats = {
