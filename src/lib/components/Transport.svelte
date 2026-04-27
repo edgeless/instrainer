@@ -236,7 +236,7 @@
           }
         }
       }
-      
+
       if (foundNoteStart || expectedNoteTimeMs === null) {
         filteredHistory.push(h);
       }
@@ -377,7 +377,7 @@
             }
           }
         }
-        
+
         if (foundNoteStart || expectedNoteTimeMs === null) {
           filteredSamples.push(h);
         }
