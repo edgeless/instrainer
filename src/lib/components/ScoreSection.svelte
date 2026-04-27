@@ -1,5 +1,6 @@
 <script lang="ts">
   import { playerState, getOriginalBeats, getDisplayBeat } from '$lib/stores/player.svelte';
+  import { scoreState } from '$lib/stores/score.svelte';
   import { escapeHtml } from '$lib/utils/security';
   
   let viewMode = $state('both');
@@ -43,6 +44,8 @@
     void playerState.isPlaying;
     void playerState.isRecording;
     void playerState.currentNoteIdx;
+    // noteResultsの要素自体の更新（lengthが変わらない場合）も追跡するため、スプレッド展開して参照
+    void [...scoreState.noteResults];
     requestAnimationFrame(renderScore);
   });
 
@@ -209,6 +212,13 @@
       upcoming: 'rgba(255,255,255,0.25)'
     };
 
+    const GRADE_COLORS: Record<string, string> = {
+      perfect: 'var(--accent2)',
+      good: 'var(--accent)',
+      ok: 'var(--warn)',
+      miss: 'var(--danger)'
+    };
+
     const rows: string[] = [];
 
     for (let row = 0; row < totalRows; row++) {
@@ -253,13 +263,37 @@
       // ノート
       notes.forEach((note, i) => {
         if (note.beat < layout.rowStartBeat || note.beat >= layout.rowEndBeat) return;
-        const x = nodeLayoutMap.get(i)!;
+        let x = nodeLayoutMap.get(i)!;
         const y = getNoteY(note.name, staffTop, lineSpacing);
 
         let noteState = 'upcoming';
         if (i < playerState.currentNoteIdx) noteState = 'played';
         else if (i === playerState.currentNoteIdx) noteState = 'current';
-        const col = NOTE_COLORS[noteState];
+
+        let col = NOTE_COLORS[noteState];
+        let ghostX = x;
+        let hasGhost = false;
+
+        if (noteState === 'played') {
+          const result = scoreState.noteResults[i];
+          if (result) {
+            if (result.grade) col = GRADE_COLORS[result.grade] || col;
+            // Shift x coordinate based on timingDiffMs
+            if (result.timingDiffMs !== null && result.timingDiffMs !== undefined && result.grade !== 'miss') {
+              // 150msのズレが10pxのシフトになるように計算（上限±12px）
+              const shift = Math.max(-12, Math.min(12, result.timingDiffMs / 15));
+              if (Math.abs(shift) > 1) {
+                ghostX = x + shift;
+                hasGhost = true;
+              }
+            } else if (result.grade === 'miss' && result.timingDiffMs === 200) {
+              // 無音・未検出等の完全な miss の場合は最も遅れた状態（右ズレ上限）として表示する
+              const shift = 12;
+              ghostX = x + shift;
+              hasGhost = true;
+            }
+          }
+        }
 
         if (y > staffTop + staffH + 1) {
           for (let ly = staffTop + staffH + lineSpacing; ly <= y + 2; ly += lineSpacing)
@@ -278,43 +312,58 @@
         const isDotted = dur === 0.75 || dur === 1.5 || dur === 3;
         const flagCount = dur <= 0.25 ? 2 : dur <= 0.5 ? 1 : dur <= 0.75 ? 1 : 0;
 
-        if (isOpen) {
-          html += `<ellipse cx="${x}" cy="${y}" rx="5.5" ry="4" fill="none" stroke="${col}" stroke-width="1.5" transform="rotate(-15 ${x} ${y})"/>`;
-        } else {
-          html += `<ellipse cx="${x}" cy="${y}" rx="5.5" ry="4" fill="${col}" transform="rotate(-15 ${x} ${y})"/>`;
-        }
+        const drawNote = (nx: number, alpha: number) => {
+          let h = '';
+          const aCol = alpha < 1 ? col.replace(')', `, ${alpha})`).replace('rgb', 'rgba') : col;
 
-        const stemDir = y > staffTop + staffH / 2 ? -1 : 1;
-        const stemX = stemDir === 1 ? x - 5 : x + 5;
-        const stemEndY = y + stemDir * 28;
-        if (hasStem) {
-          html += `<line x1="${stemX}" y1="${y}" x2="${stemX}" y2="${stemEndY}" stroke="${col}" stroke-width="1.5"/>`;
-        }
-
-        // 臨時記号 (Accidentals)
-        if (note.name.includes('#')) {
-          html += `<text x="${x - 20}" y="${y + 5}" font-size="16" fill="${col}" font-family="serif">♯</text>`;
-        } else if (note.name.includes('b')) {
-          html += `<text x="${x - 20}" y="${y + 4}" font-size="16" fill="${col}" font-family="serif">♭</text>`;
-        }
-
-        if (flagCount >= 1 && hasStem) {
-          const d = -stemDir;
-          const bx = stemX;
-          const by = stemEndY;
-          html += `<path d="M ${bx} ${by} c 1 ${d*3}, 8 ${d*6}, 10 ${d*14} c -1 ${d*-2}, -6 ${d*-6}, -10 ${d*-8} Z" fill="${col}"/>`;
-          if (flagCount >= 2) {
-            const by2 = by - d * 6;
-            html += `<path d="M ${bx} ${by2} c 1 ${d*3}, 8 ${d*6}, 10 ${d*14} c -1 ${d*-2}, -6 ${d*-6}, -10 ${d*-8} Z" fill="${col}"/>`;
+          if (isOpen) {
+            h += `<ellipse cx="${nx}" cy="${y}" rx="5.5" ry="4" fill="none" stroke="${aCol}" stroke-width="1.5" transform="rotate(-15 ${nx} ${y})" opacity="${alpha}"/>`;
+          } else {
+            h += `<ellipse cx="${nx}" cy="${y}" rx="5.5" ry="4" fill="${col}" transform="rotate(-15 ${nx} ${y})" opacity="${alpha}"/>`;
           }
+
+          const stemDir = y > staffTop + staffH / 2 ? -1 : 1;
+          const stemX = stemDir === 1 ? nx - 5 : nx + 5;
+          const stemEndY = y + stemDir * 28;
+          if (hasStem) {
+            h += `<line x1="${stemX}" y1="${y}" x2="${stemX}" y2="${stemEndY}" stroke="${col}" stroke-width="1.5" opacity="${alpha}"/>`;
+          }
+
+          if (note.name.includes('#')) {
+            h += `<text x="${nx - 20}" y="${y + 5}" font-size="16" fill="${col}" font-family="serif" opacity="${alpha}">♯</text>`;
+          } else if (note.name.includes('b')) {
+            h += `<text x="${nx - 20}" y="${y + 4}" font-size="16" fill="${col}" font-family="serif" opacity="${alpha}">♭</text>`;
+          }
+
+          if (flagCount >= 1 && hasStem) {
+            const d = -stemDir;
+            const bx = stemX;
+            const by = stemEndY;
+            h += `<path d="M ${bx} ${by} c 1 ${d*3}, 8 ${d*6}, 10 ${d*14} c -1 ${d*-2}, -6 ${d*-6}, -10 ${d*-8} Z" fill="${col}" opacity="${alpha}"/>`;
+            if (flagCount >= 2) {
+              const by2 = by - d * 6;
+              h += `<path d="M ${bx} ${by2} c 1 ${d*3}, 8 ${d*6}, 10 ${d*14} c -1 ${d*-2}, -6 ${d*-6}, -10 ${d*-8} Z" fill="${col}" opacity="${alpha}"/>`;
+            }
+          }
+          if (isDotted) {
+            h += `<circle cx="${nx + 9}" cy="${y - 2}" r="1.5" fill="${col}" opacity="${alpha}"/>`;
+          }
+          return h;
+        };
+
+        if (hasGhost) {
+           html += drawNote(x, 0.3); // Base note at original location
+           html += drawNote(ghostX, 1.0); // Shifted note at actual location
+        } else {
+           html += drawNote(x, 1.0);
         }
-        if (isDotted) {
-          html += `<circle cx="${x + 9}" cy="${y - 2}" r="1.5" fill="${col}"/>`;
+
+        if (noteState !== 'upcoming') {
+          html += `<text x="${hasGhost ? ghostX : x}" y="${rowH - 6}" text-anchor="middle" font-size="8" fill="${col}" font-family="'Space Mono',monospace">${escapeHtml(note.name.replace(/\d+$/, ''))}</text>`;
         }
-        if (noteState !== 'upcoming')
-          html += `<text x="${x}" y="${rowH - 6}" text-anchor="middle" font-size="8" fill="${col}" font-family="'Space Mono',monospace">${escapeHtml(note.name.replace(/\d+$/, ''))}</text>`;
-        if (noteState === 'current')
+        if (noteState === 'current') {
           html += `<circle cx="${x}" cy="${y}" r="11" fill="none" stroke="${col}" stroke-width="1.5" opacity="0.4"/>`;
+        }
       });
 
       rows.push(`<svg viewBox="0 0 ${W} ${rowH}" width="${W}" height="${rowH}" style="display:block;margin-bottom:4px;">${html}</svg>`);
@@ -362,17 +411,46 @@
       notes.forEach((note, i) => {
         if (note.beat < layout.rowStartBeat || note.beat >= layout.rowEndBeat) return;
 
-        const x = layout.elPositions[layout.elements.findIndex(el => el.type === 'note' && el.noteIdx === i)];
+        let x = layout.elPositions[layout.elements.findIndex(el => el.type === 'note' && el.noteIdx === i)];
         const sidx = STRINGS.indexOf(note.string);
         if (sidx === -1) return;
 
         const y = 20 + sidx * 20;
-        const state = i < playerState.currentNoteIdx ? 'tc-played' : i === playerState.currentNoteIdx ? 'tc-current' : '';
+        let state = i < playerState.currentNoteIdx ? 'tc-played' : i === playerState.currentNoteIdx ? 'tc-current' : '';
+        let ghostX = x;
+        let hasGhost = false;
+
+        if (state === 'tc-played') {
+          const result = scoreState.noteResults[i];
+          if (result) {
+            if (result.grade) state = `tc-played-${result.grade}`;
+            if (result.timingDiffMs !== null && result.timingDiffMs !== undefined && result.grade !== 'miss') {
+              // 150msのズレが10pxのシフトになるように計算（上限±12px）
+              const shift = Math.max(-12, Math.min(12, result.timingDiffMs / 15));
+              if (Math.abs(shift) > 1) {
+                ghostX = x + shift;
+                hasGhost = true;
+              }
+            } else if (result.grade === 'miss' && result.timingDiffMs === 200) {
+              // 無音・未検出等の完全な miss の場合は最も遅れた状態（右ズレ上限）として表示する
+              const shift = 12;
+              ghostX = x + shift;
+              hasGhost = true;
+            }
+          }
+        }
+
         const beatNum = (note.beat % timeSigNum) + 1;
         const beatCol = i === playerState.currentNoteIdx ? 'var(--accent)' : 'var(--muted)';
 
-        html += `<div class="tab-note-val ${state}" style="left:${x-8}px;top:${y+1}px;width:16px;">${escapeHtml(note.fret)}</div>`;
-        html += `<div style="position:absolute;top:104px;left:${x-10}px;width:20px;text-align:center;font-size:8px;color:${beatCol};font-family:'Space Mono',monospace;">${escapeHtml(beatNum)}</div>`;
+        if (hasGhost) {
+           html += `<div class="tab-note-val ${state}" style="left:${x-8}px;top:${y+1}px;width:16px;opacity:0.3;">${escapeHtml(note.fret)}</div>`;
+           html += `<div class="tab-note-val ${state}" style="left:${ghostX-8}px;top:${y+1}px;width:16px;">${escapeHtml(note.fret)}</div>`;
+        } else {
+           html += `<div class="tab-note-val ${state}" style="left:${x-8}px;top:${y+1}px;width:16px;">${escapeHtml(note.fret)}</div>`;
+        }
+
+        html += `<div style="position:absolute;top:104px;left:${(hasGhost ? ghostX : x)-10}px;width:20px;text-align:center;font-size:8px;color:${beatCol};font-family:'Space Mono',monospace;">${escapeHtml(beatNum)}</div>`;
       });
 
       html += `</div>`;
@@ -618,6 +696,10 @@
   z-index: 2;
 }
 :global(.tab-note-val.tc-played) { color: rgba(58,245,160,0.7); }
+:global(.tab-note-val.tc-played-perfect) { color: var(--accent2); }
+:global(.tab-note-val.tc-played-good) { color: var(--accent); }
+:global(.tab-note-val.tc-played-ok) { color: var(--warn); }
+:global(.tab-note-val.tc-played-miss) { color: var(--danger); }
 :global(.tab-note-val.tc-current) { 
   color: var(--accent); font-weight: 700; 
   text-shadow: 0 0 8px var(--accent);
