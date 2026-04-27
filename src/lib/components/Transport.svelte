@@ -96,25 +96,16 @@
       const beatInLoop = originalBeats > 0 ? playerState.currentBeat % originalBeats : playerState.currentBeat;
       let targetNoteIdx = playerState.currentNoteIdx;
 
-      // インデックスが範囲外、またはビートが現在のノートの許容下限より前の場合は最初から（シークやループ時、曲の変更時）
-      const currBeatForReset = playerState.song.notes[targetNoteIdx]?.beat ?? 0;
-      const prevBeatForReset = targetNoteIdx > 0 ? playerState.song.notes[targetNoteIdx - 1].beat : currBeatForReset;
-      const safeLowerBound = targetNoteIdx > 0 ? prevBeatForReset + (currBeatForReset - prevBeatForReset) / 2 : 0;
-      if (targetNoteIdx >= playerState.song.notes.length || playerState.song.notes[targetNoteIdx]?.beat > beatInLoop && safeLowerBound > beatInLoop) {
+      // インデックスが範囲外、またはビートが現在のノートのビート位置より前の場合は最初から
+      if (targetNoteIdx >= playerState.song.notes.length || playerState.song.notes[targetNoteIdx]?.beat > beatInLoop) {
         targetNoteIdx = 0;
       }
-      // ビートが進んでいる間、次の音符の「少し前（transitionBeat）」を過ぎたらインデックスを進める
+      // ビートが進んでいる間、次の音符の開始ビートを過ぎたらインデックスを進める
       while (
-        targetNoteIdx + 1 < playerState.song.notes.length
+        targetNoteIdx + 1 < playerState.song.notes.length &&
+        beatInLoop >= playerState.song.notes[targetNoteIdx + 1].beat
       ) {
-        const nextB = playerState.song.notes[targetNoteIdx + 1].beat;
-        const curB = playerState.song.notes[targetNoteIdx].beat;
-        const transitionBeat = nextB - Math.min(0.25, (nextB - curB) / 2);
-        if (beatInLoop >= transitionBeat) {
-          targetNoteIdx++;
-        } else {
-          break;
-        }
+        targetNoteIdx++;
       }
 
       const isFree = playerState.isFreeMode;
@@ -127,12 +118,13 @@
 
           for (let i = start; i < end; i++) {
             if (i === prevNoteIdx) {
+              const hist = [...scoreState.currentCentsHistory];
               scoreState.recordedSamples.push({
                 noteIdx: i,
                 loopIdx: playerState.currentLoop,
-                samples: [...scoreState.currentCentsHistory]
+                samples: hist
               });
-              gradeNote(i, [...scoreState.currentCentsHistory]);
+              gradeNote(i, hist);
             } else {
               // Miss for skipped notes
               scoreState.recordedSamples.push({
@@ -202,18 +194,52 @@
     if (playerState.playbackStartTimeMs !== null) {
       const originalBeats = getOriginalBeats();
       const currentLoopOffset = (playerState.currentLoop - 1) * originalBeats;
-      const beatOffset = note.beat + currentLoopOffset;
+      // カウントインを考慮: startRecord() は playbackStartTimeMs に countIn 分を加算した未来時刻を設定するため、
+      // beatOffset にも同じ countIn を加算しないと expectedNoteTimeMs が正しく計算されない
+      const countIn = getCountInBeats();
+      const beatOffset = playerState.isFreeMode
+        ? note.beat + currentLoopOffset
+        : note.beat + currentLoopOffset + countIn;
       expectedNoteTimeMs = playerState.playbackStartTimeMs + (beatOffset * (60 / playerState.song.bpm) * 1000);
     }
 
     let filteredHistory = [];
+    let foundNoteStart = false;
+
     for (const h of centsHistory) {
-      if (expectedNoteTimeMs !== null && h.time < expectedNoteTimeMs && prevTargetF) {
-        const cTarget = Math.abs(freqToCents(h.freq, targetF) ?? 9999);
-        const cPrev = Math.abs(freqToCents(h.freq, prevTargetF) ?? 9999);
-        if (cPrev < cTarget && cPrev < 200) continue; // 前の音符の余韻であると判断して除外
+      if (expectedNoteTimeMs !== null && !foundNoteStart) {
+        if (prevTargetF) {
+          const isSameNote = Math.abs(targetF - prevTargetF) < 1;
+          if (!isSameNote) {
+            const cTarget = Math.abs(freqToCents(h.freq, targetF) ?? 9999);
+            const cPrev = Math.abs(freqToCents(h.freq, prevTargetF) ?? 9999);
+            // 前の音符のピッチに近く、かつ前の音符の方が現在のターゲットより近い場合は「前の音符の余韻」として無視する
+            if (cPrev < cTarget && cPrev <= 200) {
+              continue;
+            } else {
+              foundNoteStart = true;
+            }
+          } else {
+            // 同音連打の場合はピッチで区別できないため、期待時刻の150ms前を区切りとする
+            if (h.time < expectedNoteTimeMs - 150) {
+              continue;
+            } else {
+              foundNoteStart = true;
+            }
+          }
+        } else {
+          // 前の音符がない（最初の音符）場合、極端に早いノイズだけ弾く
+          if (h.time < expectedNoteTimeMs - 500) {
+             continue;
+          } else {
+             foundNoteStart = true;
+          }
+        }
       }
-      filteredHistory.push(h);
+      
+      if (foundNoteStart || expectedNoteTimeMs === null) {
+        filteredHistory.push(h);
+      }
     }
     if (filteredHistory.length === 0) filteredHistory = centsHistory;
 
@@ -230,22 +256,29 @@
       scoreState.noteResults[idx] = { grade: 'miss', combinedGrade: 'miss', pitchGrade: 'miss', timingGrade: 'miss', avgCents: null, timingDiffMs: 200 };
       return;
     }
-    const sorted = [...centsArr].sort((a, b) => a - b);
-    const median = sorted[Math.floor(sorted.length / 2)];
-    const pitchGrade = getGrade(Math.abs(median), playerState.tolerance);
+    // runPostAnalysis() と同じ 10% トリム平均でピッチ評価（リアルタイム・後処理の結果を統一）
+    const s = [...centsArr].sort((a, b) => a - b);
+    const trim = Math.floor(s.length * 0.1);
+    const trimmed = s.slice(trim, s.length - trim);
+    const mean = trimmed.length ? trimmed.reduce((a, b) => a + b, 0) / trimmed.length : s[Math.floor(s.length / 2)];
+    const pitchGrade = getGrade(Math.abs(mean), playerState.tolerance);
 
     let timingGrade: 'miss' | 'ok' | 'good' | 'perfect' = 'miss';
     let timingDiffMs: number | null = null;
 
-    if (expectedNoteTimeMs !== null && validSamples.length > 0) {
-      const firstSampleTime = validSamples[0].time;
-      timingDiffMs = firstSampleTime - expectedNoteTimeMs;
-      timingGrade = getTimingGrade(Math.abs(timingDiffMs));
+    if (expectedNoteTimeMs !== null) {
+      // スライド除外をせず filteredHistory の最初の有効サンプルを打鍵時刻として使う。
+      // これにより、弾き始めが sliding 判定された場合でも正確なタイミングを取得できる。
+      const firstSample = filteredHistory.find(h => h.freq > 0);
+      if (firstSample) {
+        timingDiffMs = firstSample.time - expectedNoteTimeMs;
+        timingGrade = getTimingGrade(Math.abs(timingDiffMs));
+      }
     }
 
     const combinedGrade = getCombinedGrade(pitchGrade, timingGrade);
 
-    scoreState.noteResults[idx] = { grade: combinedGrade, combinedGrade, pitchGrade, timingGrade, avgCents: median, timingDiffMs, rawCents: centsArr };
+    scoreState.noteResults[idx] = { grade: combinedGrade, combinedGrade, pitchGrade, timingGrade, avgCents: mean, timingDiffMs, rawCents: centsArr };
   }
 
   function finalizeFreeModeSession() {
@@ -315,13 +348,39 @@
       }
 
       let filteredSamples = [];
+      let foundNoteStart = false;
+
       for (const h of samples) {
-        if (expectedNoteTimeMs !== null && h.time < expectedNoteTimeMs && prevTargetF) {
-          const cTarget = Math.abs(freqToCents(h.freq, targetF) ?? 9999);
-          const cPrev = Math.abs(freqToCents(h.freq, prevTargetF) ?? 9999);
-          if (cPrev < cTarget && cPrev < 200) continue;
+        if (expectedNoteTimeMs !== null && !foundNoteStart) {
+          if (prevTargetF) {
+            const isSameNote = Math.abs(targetF - prevTargetF) < 1;
+            if (!isSameNote) {
+              const cTarget = Math.abs(freqToCents(h.freq, targetF) ?? 9999);
+              const cPrev = Math.abs(freqToCents(h.freq, prevTargetF) ?? 9999);
+              if (cPrev < cTarget && cPrev <= 200) {
+                continue;
+              } else {
+                foundNoteStart = true;
+              }
+            } else {
+              if (h.time < expectedNoteTimeMs - 150) {
+                continue;
+              } else {
+                foundNoteStart = true;
+              }
+            }
+          } else {
+            if (h.time < expectedNoteTimeMs - 500) {
+               continue;
+            } else {
+               foundNoteStart = true;
+            }
+          }
         }
-        filteredSamples.push(h);
+        
+        if (foundNoteStart || expectedNoteTimeMs === null) {
+          filteredSamples.push(h);
+        }
       }
       if (filteredSamples.length === 0) filteredSamples = samples;
 
@@ -352,7 +411,8 @@
         // In post analysis, calculate expected time
         const originalBeats = getOriginalBeats();
         const loopOffset = (rs.loopIdx - 1) * originalBeats;
-        const beatOffset = note.beat + loopOffset;
+        const countIn = getCountInBeats();
+        const beatOffset = playerState.isFreeMode ? note.beat + loopOffset : note.beat + loopOffset + countIn;
         const expectedNoteTimeMs = playerState.playbackStartTimeMs + (beatOffset * (60 / playerState.song.bpm) * 1000);
         timingDiffMs = firstSampleTime - expectedNoteTimeMs;
         timingGrade = getTimingGrade(Math.abs(timingDiffMs));
@@ -568,7 +628,7 @@
     } else {
       const countIn = getCountInBeats();
       playerState.currentBeat = -countIn;
-      playerState.playbackStartTimeMs = performance.now() + (countIn * secPerBeat * 1000);
+      playerState.playbackStartTimeMs = performance.now();
     }
     scheduleBeat();
   }
