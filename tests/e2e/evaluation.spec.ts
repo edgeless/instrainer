@@ -44,7 +44,8 @@ test.describe('Evaluation Tests', () => {
             win.__svelte_audio_context.resume();
          }
       });
-      await page.waitForTimeout(500);
+      // Wait for the overlay to be completely hidden in the DOM
+      await page.waitForSelector('.mic-overlay', { state: 'hidden', timeout: 5000 }).catch(() => {});
     }
 
     // Since headless chromium has issues with MediaRecorder starting when standard streams are used without UI context,
@@ -103,28 +104,24 @@ test.describe('Evaluation Tests', () => {
   test('perfect audio file evaluates pitch and timing successfully', async () => {
     test.setTimeout(40000);
     const { pitchVal, timingVal } = await runEvalTest('c_major_perfect.wav');
-    if (pitchVal !== 0 || timingVal !== 0) {
-      expect(pitchVal).toBeGreaterThan(60);
-      expect(timingVal).toBeGreaterThan(60);
-    }
+    expect(pitchVal).toBeGreaterThan(60);
+    expect(timingVal).toBeGreaterThan(60);
   });
 
   test('good pitch audio file evaluates successfully', async () => {
     test.setTimeout(40000);
     const { pitchVal, timingVal } = await runEvalTest('c_major_good_pitch.wav');
-    if (pitchVal !== 0 || timingVal !== 0) {
-      expect(pitchVal).toBeGreaterThan(30);
-      expect(pitchVal).toBeLessThan(100);
-    }
+    expect(pitchVal).toBeGreaterThan(30);
+    expect(pitchVal).toBeLessThan(100);
+    expect(timingVal).toBeGreaterThan(60); // Timing should still be excellent
   });
 
   test('good timing audio file evaluates successfully', async () => {
     test.setTimeout(40000);
     const { pitchVal, timingVal } = await runEvalTest('c_major_good_timing.wav');
-    if (pitchVal !== 0 || timingVal !== 0) {
-      expect(timingVal).toBeGreaterThan(30);
-      expect(timingVal).toBeLessThan(100);
-    }
+    expect(timingVal).toBeGreaterThan(30);
+    expect(timingVal).toBeLessThan(100);
+    expect(pitchVal).toBeGreaterThan(60); // Pitch should still be excellent
   });
 
 });
