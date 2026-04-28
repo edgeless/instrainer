@@ -7,10 +7,19 @@
   import Transport from '$lib/components/Transport.svelte';
   import ResultOverlay from '$lib/components/ResultOverlay.svelte';
   import { playerState } from '$lib/stores/player.svelte';
+  import { audioState } from '$lib/stores/audio.svelte';
+  import { scoreState } from '$lib/stores/score.svelte';
   import FreeScoreArea from '$lib/components/FreeScoreArea.svelte';
   import FreeScorePanel from '$lib/components/FreeScorePanel.svelte';
+  import { onMount } from 'svelte';
 
   let transportRef: ReturnType<typeof Transport> | undefined = $state(undefined);
+
+  onMount(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__states = { audioState, playerState, scoreState };
+    }
+  });
 </script>
 
 <MicPermission />
