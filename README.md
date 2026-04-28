@@ -197,15 +197,6 @@ npm run test:unit  # ユニットテストのみ
 npm run test:e2e   # E2Eテストのみ
 ```
 
-#### E2Eテスト実行時の注意点
-- **仮想オーディオのレイテンシ**: Headlessブラウザ（CI等）で仮想マイクのループバックを使用する場合、実機よりもレイテンシが短くなります。テストコード側で動的に `latencyCompensationMs` を調整してタイミング判定を安定させています。
-- **Headedモードの直列実行**: `--headed` フラグをつけて画面表示ありでテストを実行する際は、リソース競合を防ぐため `--workers=1` を指定してください。
-- **ポート競合**: テストが予期せず失敗する場合、バックグラウンドでViteサーバー（ポート5173）が残留している可能性があります。プロセスを終了してから再実行してください。
-- **Windowsでのパス指定**: PowerShell環境などでテストが実行できない（`command not found`）場合は、一時的にNode.jsのパスを通してから実行してください。
-  ```powershell
-  $env:Path = "C:\Program Files\nodejs;" + $env:Path; npm run test:e2e
-  ```
-
 ### 開発環境（Docker）でのテスト実行
 ローカルのNode.js環境を汚さずにクリーンな環境でテストを実行するため、Docker Composeを使用できます。
 
@@ -216,4 +207,4 @@ docker compose -f compose.test.yaml run unit
 # E2Eテストをコンテナで実行
 docker compose -f compose.test.yaml run e2etest
 ```
-
+```

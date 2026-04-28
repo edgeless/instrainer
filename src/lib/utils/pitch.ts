@@ -6,13 +6,7 @@ export function midiToFreq(midi: number): number {
 // Frequency to Cents comparison against target
 export function freqToCents(detected: number, target: number): number | null {
   if (detected <= 0 || target <= 0) return null;
-  
-  // Octave-agnostic calculation for robustness (bass often doubles/halves octaves)
-  let d = detected;
-  while (d > target * 1.5) d /= 2;
-  while (d < target * 0.75) d *= 2;
-  
-  return 1200 * Math.log2(d / target);
+  return 1200 * Math.log2(detected / target);
 }
 
 // YIN Pitch Detection (fast mode: small window)
@@ -32,7 +26,7 @@ export function detectPitch(analyserNode: AnalyserNode, pitchBuf: Float32Array |
     return -1;
   }
 
-  const threshold = 0.08;
+  const threshold = 0.12;
   const minFreq = 30, maxFreq = 400;
   const minLag = Math.floor(sampleRate / maxFreq);
   const maxLag = Math.floor(sampleRate / minFreq);
