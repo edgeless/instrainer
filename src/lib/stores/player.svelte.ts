@@ -32,11 +32,17 @@ if (browser) {
   }
 }
 
+function calculateCountIn(song: Song) {
+  return song.timeSignature?.[0] ?? 4;
+}
+
+const initialSong = (initialImported || SONGS['c_major']) as Song;
+
 export const playerState = $state<PlayerState>({
   currentSongKey: initialImported ? 'imported' : 'c_major',
-  song: (initialImported || SONGS['c_major']) as Song,
+  song: initialSong,
   currentNoteIdx: 0,
-  currentBeat: -((initialImported || SONGS['c_major']) as Song).timeSignature?.[0]! || -4,
+  currentBeat: -calculateCountIn(initialSong),
   isPlaying: false,
   isRecording: false,
   tolerance: 20, // cents
@@ -49,6 +55,10 @@ export const playerState = $state<PlayerState>({
   playbackStartTimeMs: null,
   isDemoPlaying: false,
 });
+
+export function getCountInBeats() {
+  return calculateCountIn(playerState.song);
+}
 
 export function setSong(arg: string | Song) {
   if (typeof arg === 'string') {
@@ -90,10 +100,6 @@ export function getTotalBeats() {
 export function getTotalDurationSeconds() {
   const totalBeats = getTotalBeats();
   return (totalBeats / playerState.song.bpm) * 60;
-}
-
-export function getCountInBeats() {
-  return playerState.song.timeSignature?.[0] || 4;
 }
 
 /**

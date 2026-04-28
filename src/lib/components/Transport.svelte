@@ -490,7 +490,7 @@
       const offsetSeconds = Math.max(0, playerState.currentBeat * secPerBeat);
       playbackAudio.currentTime = offsetSeconds;
 
-      // カウントイン中 (-4 〜 -1 ビート) の場合は遅延させて再生する
+      // カウントイン中 (-countIn 〜 -1 ビート) の場合は遅延させて再生する
       if (playerState.currentBeat < 0) {
         const delaySeconds = Math.abs(playerState.currentBeat) * secPerBeat;
         setTimeout(() => {
