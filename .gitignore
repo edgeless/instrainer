@@ -30,5 +30,5 @@ blob-report/
 playwright/.cache/
 
 # Logs and package managers
-*.log
+/*.log
 bun.lock

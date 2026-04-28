@@ -43,8 +43,8 @@ def generate_wav(filename, notes, bpm, sample_rate=44100):
                 buffer[i] = int(sample * envelope * 32767.0)
 
         for s in buffer:
-            s = max(-32768, min(32767, s))
-            wav_file.writeframes(struct.pack('h', s))
+            clamped_s = max(-32768, min(32767, s))
+            wav_file.writeframes(struct.pack('h', clamped_s))
 
 bpm = 80
 c_major_notes_perfect = [
