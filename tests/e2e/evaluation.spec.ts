@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 // End-to-End tests simulating actual audio recording.
 test.describe('Evaluation Tests', () => {
 
-  const runEvalTest = async (browser, audioFileName: string) => {
+  const runEvalTest = async (browser: import('@playwright/test').Browser, audioFileName: string) => {
     const audioFile = path.resolve(__dirname, `../assets/${audioFileName}`);
 
     // We launch a dedicated browser for this test so we can specify the file.
