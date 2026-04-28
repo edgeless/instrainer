@@ -120,7 +120,8 @@ export function getDisplayBeat() {
       if (playerState.isFreeMode) {
         return elapsedMs / (secPerBeat * 1000);
       } else {
-        return (elapsedMs / (secPerBeat * 1000)) - getCountInBeats();
+        const countIn = getCountInBeats();
+        return (elapsedMs / (secPerBeat * 1000)) - countIn;
       }
     }
   }
