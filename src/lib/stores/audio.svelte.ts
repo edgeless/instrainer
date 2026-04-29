@@ -95,7 +95,7 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
       audioState.audioCtx = new window.AudioContext();
 
       audioState.analyserNode = audioState.audioCtx.createAnalyser();
-      audioState.analyserNode.fftSize = 2048;
+      audioState.analyserNode.fftSize = 4096;
       audioState.analyserNode.smoothingTimeConstant = 0.1;
       audioState.pitchBuf = new Float32Array(audioState.analyserNode.fftSize);
     } else {
@@ -125,7 +125,7 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
         try { await audioState.audioCtx.close(); } catch(err) {}
         audioState.audioCtx = new window.AudioContext();
         audioState.analyserNode = audioState.audioCtx.createAnalyser();
-        audioState.analyserNode.fftSize = 2048;
+        audioState.analyserNode.fftSize = 4096;
         audioState.pitchBuf = new Float32Array(audioState.analyserNode.fftSize);
       }
     }
