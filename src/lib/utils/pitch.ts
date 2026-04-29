@@ -27,7 +27,7 @@ export function detectPitch(analyserNode: AnalyserNode, pitchBuf: Float32Array |
   }
 
   const threshold = 0.12;
-  const minFreq = 30, maxFreq = 400;
+  const minFreq = 30, maxFreq = 1200;
   const minLag = Math.floor(sampleRate / maxFreq);
   const maxLag = Math.floor(sampleRate / minFreq);
 
@@ -90,7 +90,7 @@ export function detectPitch(analyserNode: AnalyserNode, pitchBuf: Float32Array |
 export function detectPitchHQ(samples: number[], sr: number): number {
   const n = samples.length;
   const threshold = 0.08;
-  const minFreq = 30, maxFreq = 400;
+  const minFreq = 30, maxFreq = 1200;
   const minLag = Math.floor(sr / maxFreq);
   const maxLag = Math.min(Math.floor(sr / minFreq), Math.floor(n / 2));
 

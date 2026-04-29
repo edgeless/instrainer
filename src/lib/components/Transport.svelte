@@ -258,7 +258,7 @@
     }
     // runPostAnalysis() と同じ 10% トリム平均でピッチ評価（リアルタイム・後処理の結果を統一）
     const s = [...centsArr].sort((a, b) => a - b);
-    const trim = Math.floor(s.length * 0.1);
+    const trim = Math.floor(s.length * 0.25);
     const trimmed = s.slice(trim, s.length - trim);
     const mean = trimmed.length ? trimmed.reduce((a, b) => a + b, 0) / trimmed.length : s[Math.floor(s.length / 2)];
     const pitchGrade = getGrade(Math.abs(mean), playerState.tolerance);
@@ -402,7 +402,7 @@
         continue;
       }
       const s = [...centsArr].sort((a, b) => a - b);
-      const trim = Math.floor(s.length * 0.1);
+      const trim = Math.floor(s.length * 0.25);
       const trimmed = s.slice(trim, s.length - trim);
       const mean = trimmed.length ? trimmed.reduce((a, b) => a + b, 0) / trimmed.length : s[Math.floor(s.length / 2)];
       const pitchGrade = getGrade(Math.abs(mean), playerState.tolerance);

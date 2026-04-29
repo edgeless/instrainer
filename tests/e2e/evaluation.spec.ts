@@ -5,8 +5,12 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// E2E評価テスト: 実際の音声入力をシミュレートして採点ロジックの正確性を検証します。
+// Playwrightの `--use-file-for-fake-audio-capture` フラグを使用して、
+// 事前に生成したWAVファイルを仮想マイク入力として流し込みます。
 test.describe('Evaluation Tests', () => {
   test.skip(!!process.env.CI, 'Evaluation tests require headed mode and are skipped on CI');
+  // 各テストは独立したChromiumインスタンスを起動するため、リソース競合を避けるため直列実行します。
   test.describe.configure({ mode: 'serial' });
 
   const runEvalTest = async (audioFileName: string) => {
@@ -25,7 +29,8 @@ test.describe('Evaluation Tests', () => {
 
     const context = await browserInstance.newContext({
       permissions: ['microphone'],
-      baseURL: 'http://localhost:5173'
+      baseURL: 'http://localhost:5173',
+      ignoreHTTPSErrors: true
     });
 
     const page = await context.newPage();
@@ -35,44 +40,33 @@ test.describe('Evaluation Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    // Reset latency compensation for E2E tests as loopback has some latency (~100ms in headless)
-    await page.evaluate(() => {
-      if ((window as any).__states && (window as any).__states.audioState) {
-        (window as any).__states.audioState.latencyCompensationMs = 100;
-      }
-    });
-
+    // Click mic permission button first - this triggers getUserMedia
     const dismissBtn = page.locator("button:has-text('マイク')");
     if (await dismissBtn.isVisible()) {
       console.log(`[${audioFileName}] Clicking mic permission button...`);
       await dismissBtn.click({ force: true });
 
+      // Wait for mic init to complete
       await page.waitForFunction(() => {
         return document.querySelector('.mic-overlay.hide') !== null ||
                document.querySelector('.mic-err') !== null;
       }, { timeout: 20000 }).catch(() => {
         console.log(`[${audioFileName}] Timed out waiting for mic overlay to hide`);
       });
-
-      const micError = await page.evaluate(() => {
-        const err = document.querySelector('.mic-err');
-        return err ? err.textContent : null;
-      });
-      if (micError) {
-        console.error(`[${audioFileName}] Mic Error from UI:`, micError);
-      }
     }
 
+    // Now wait for __states and select the correct song
     await page.waitForFunction(() => !!(window as any).__states, { timeout: 10000 });
     const songName = await page.evaluate(() => {
       const { setSong, playerState, audioState } = (window as any).__states;
       if (setSong) setSong('c_major');
-      playerState.tolerance = 60;
+      playerState.tolerance = 60; 
       audioState.latencyCompensationMs = 260; // Final calibrated value for BPM 60
       return playerState.song.name;
     });
     console.log(`[${audioFileName}] Selected song: ${songName} (Tol=60, Latency=260)`);
 
+    // Click rec button
     console.log(`[${audioFileName}] Triggering recording...`);
     await page.evaluate(() => {
       const rec = document.querySelector('.tbtn.rec') as HTMLElement;
@@ -123,6 +117,12 @@ test.describe('Evaluation Tests', () => {
     }
   };
 
+  /**
+   * ケース1: 完全な演奏 (c_major_perfect.wav)
+   * - ピッチ: 偏差0（理想的な周波数）
+   * - タイミング: 拍の開始位置に完全に同期
+   * - 目的: 理想的な条件下でシステムが正しく高スコアを算出できることを確認する。
+   */
   test('perfect audio file evaluates pitch and timing successfully', async () => {
     test.setTimeout(80000);
     const { pitchVal, timingVal } = await runEvalTest('c_major_perfect.wav');
@@ -131,6 +131,12 @@ test.describe('Evaluation Tests', () => {
     expect(timingVal).toBeGreaterThan(80);
   });
 
+  /**
+   * ケース2: ピッチの微細なズレ (c_major_good_pitch.wav)
+   * - ピッチ: 意図的に全音符を15セント高く設定
+   * - タイミング: 正確
+   * - 目的: わずかなピッチのズレがスコアに正しく反映され、許容範囲内（Good以上）で判定されるかを確認する。
+   */
   test('good pitch audio file evaluates successfully', async () => {
     test.setTimeout(80000);
     const { pitchVal, timingVal } = await runEvalTest('c_major_good_pitch.wav');
@@ -139,6 +145,12 @@ test.describe('Evaluation Tests', () => {
     expect(timingVal).toBeGreaterThan(30);
   });
 
+  /**
+   * ケース3: タイミングのズレ (c_major_good_timing.wav)
+   * - ピッチ: 正確
+   * - タイミング: 各音符の発音を意図的に前後（約50-100ms）にずらして配置
+   * - 目的: タイミングのゆらぎが検出され、スコアが適切に低下することを確認する。
+   */
   test('good timing audio file evaluates successfully', async () => {
     test.setTimeout(80000);
     const { pitchVal, timingVal } = await runEvalTest('c_major_good_timing.wav');
@@ -147,8 +159,8 @@ test.describe('Evaluation Tests', () => {
     expect(pitchVal).toBeGreaterThan(30);
   });
 
-  test('silent audio results in zero score', async () => {
-    test.setTimeout(80000);
+  test('silent audio results in zero score', async ({ page }) => {
+    test.setTimeout(40000);
     const { pitchVal, timingVal } = await runEvalTest('silent.wav');
     console.log(`[ASSERT] silence: pitch=${pitchVal}, timing=${timingVal}`);
     expect(pitchVal).toBe(0);
