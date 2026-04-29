@@ -147,6 +147,10 @@ AIコーディングエージェント向けの文書です。このドキュメ
 - **サプライチェーン攻撃対策**: GMO Flatt Security が提供する **Takumi Guard** を導入しています。
 - **仕組み**: `.npmrc` で `registry=https://npm.flatt.tech/` を指定することで、npmパッケージのインストール前に悪意あるコードの混入をリアルタイムでブロックします。
 - **運用の注意**: Takumi Guard は読み取り専用プロキシです。`npm publish` や `npm login` などの書き込み操作を行う場合は、個別に `--registry=https://registry.npmjs.org/` を指定する必要があります。
+- **Content Security Policy (CSP)**: SvelteKit の `kit.csp` を使用して、スクリプトやスタイルの実行を制限しています。
+  - **nonce の利用**: `app.html` 等で外部リソース（Google Fonts 等）を読み込む際は、必ず `nonce="%sveltekit.nonce%"` を付与してください。
+  - **設定の更新**: 新しく外部ドメインのリソースを追加する場合は、`svelte.config.js` の `directives` を適切に更新する必要があります。
+  - **インラインスタイルの許容**: 進捗バー等の動的なスタイル制御のため、現状 `style-src` には `'unsafe-inline'` を許可しています。
 
 ## 10. iReal Pro 取込機能の実装
 
