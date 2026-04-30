@@ -83,8 +83,11 @@ describe('pitch utils', () => {
     assert.strictEqual(getCombinedGrade('miss', 'miss'), 'miss');
   });
 
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> e99a390 (Fix demo stop button state (#48))
   test('detectPitch detects pitch with mocked AnalyserNode', () => {
     const sr = 44100;
     const freq = 220; // A3

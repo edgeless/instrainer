@@ -520,6 +520,7 @@
 
   function pausePlay() {
     playerState.isPlaying = false;
+    playerState.isDemoPlaying = false;
     if (beatInterval) clearTimeout(beatInterval);
     playerState.status = 'idle';
     stopDemoNotes();
@@ -548,9 +549,15 @@
   function seekStart() {
     const wasPlaying = playerState.isPlaying;
     const wasRec = playerState.isRecording;
+    const wasDemo = playerState.isDemoPlaying;
     stopAll();
-    if (wasPlaying) startPlay();
-    if (wasRec) startRecord();
+    if (wasDemo) {
+      playerState.isDemoPlaying = true;
+      startPlay();
+    } else {
+      if (wasPlaying) startPlay();
+      if (wasRec) startRecord();
+    }
   }
 
   function togglePlay() {
