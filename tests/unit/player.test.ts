@@ -1,6 +1,12 @@
 import { describe, test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert';
-import { playerState, getDisplayBeat } from '../../src/lib/stores/player.svelte';
+import {
+  playerState,
+  getDisplayBeat,
+  getOriginalBeats,
+  getTotalBeats,
+  getTotalDurationSeconds
+} from '../../src/lib/stores/player.svelte';
 
 describe('getDisplayBeat', () => {
   let originalPerformanceNow: typeof performance.now;
@@ -81,5 +87,50 @@ describe('getDisplayBeat', () => {
 
     const displayBeat = getDisplayBeat();
     assert.strictEqual(displayBeat, 5);
+  });
+});
+
+describe('Beat and Duration Calculations', () => {
+  beforeEach(() => {
+    playerState.repeatCount = 1;
+    playerState.song = {
+      name: 'Test',
+      bpm: 60,
+      notes: []
+    };
+  });
+
+  test('getOriginalBeats returns 0 when notes array is empty', () => {
+    playerState.song.notes = [];
+    assert.strictEqual(getOriginalBeats(), 0);
+  });
+
+  test('getOriginalBeats returns sum of beat and dur of the last note', () => {
+    playerState.song.notes = [
+      { name: 'C2', midi: 36, string: 'A', fret: 3, beat: 0, dur: 4 },
+      { name: 'G2', midi: 43, string: 'E', fret: 3, beat: 4, dur: 4 }
+    ];
+    // Last note: beat=4, dur=4 -> 4+4=8
+    assert.strictEqual(getOriginalBeats(), 8);
+  });
+
+  test('getTotalBeats correctly multiplies getOriginalBeats by repeatCount', () => {
+    playerState.song.notes = [
+      { name: 'C2', midi: 36, string: 'A', fret: 3, beat: 0, dur: 4 }
+    ];
+    // Original beats = 4
+    playerState.repeatCount = 3;
+    assert.strictEqual(getTotalBeats(), 12);
+  });
+
+  test('getTotalDurationSeconds correctly calculates duration based on totalBeats and bpm', () => {
+    playerState.song.notes = [
+      { name: 'C2', midi: 36, string: 'A', fret: 3, beat: 0, dur: 4 }
+    ];
+    playerState.song.bpm = 120;
+    playerState.repeatCount = 1;
+    // Original beats = 4. Total beats = 4.
+    // Duration = (4 / 120) * 60 = 2 seconds.
+    assert.strictEqual(getTotalDurationSeconds(), 2);
   });
 });
