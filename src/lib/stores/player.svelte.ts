@@ -21,6 +21,11 @@ interface PlayerState {
 
 // 初期化時に localStorage からインポート曲を読み込む
 let initialImported: Song | null = null;
+let initialSongKey = 'c_major';
+let initialBpm: number | null = null;
+let initialRepeatCount = 1;
+let initialTolerance = 20;
+
 if (browser) {
   const saved = localStorage.getItem('imported_song');
   if (saved) {
@@ -30,25 +35,63 @@ if (browser) {
       console.error("Failed to load imported song", e);
     }
   }
+
+  const savedKey = localStorage.getItem('player_song_key');
+  if (savedKey) {
+    if (savedKey === 'imported' && initialImported) {
+      initialSongKey = 'imported';
+    } else if (SONGS[savedKey]) {
+      initialSongKey = savedKey;
+    }
+  } else if (initialImported) {
+    initialSongKey = 'imported';
+  }
+
+  const savedBpm = localStorage.getItem('player_bpm');
+  if (savedBpm) {
+    const bpm = parseInt(savedBpm, 10);
+    if (!isNaN(bpm) && bpm >= 10 && bpm <= 300) {
+      initialBpm = bpm;
+    }
+  }
+
+  const savedRepeat = localStorage.getItem('player_repeat');
+  if (savedRepeat) {
+    const repeat = parseInt(savedRepeat, 10);
+    if (!isNaN(repeat) && repeat >= 1 && repeat <= 99) {
+      initialRepeatCount = repeat;
+    }
+  }
+
+  const savedTolerance = localStorage.getItem('player_tolerance');
+  if (savedTolerance) {
+    const tol = parseInt(savedTolerance, 10);
+    if (!isNaN(tol) && tol >= 5 && tol <= 50) {
+      initialTolerance = tol;
+    }
+  }
 }
 
 function calculateCountIn(song: Song) {
   return song.timeSignature?.[0] ?? 4;
 }
 
-const initialSong = (initialImported || SONGS['c_major']) as Song;
+const initialSong = (initialSongKey === 'imported' && initialImported ? initialImported : SONGS[initialSongKey]) as Song;
+if (initialBpm) {
+  initialSong.bpm = initialBpm;
+}
 
 export const playerState = $state<PlayerState>({
-  currentSongKey: initialImported ? 'imported' : 'c_major',
+  currentSongKey: initialSongKey,
   song: initialSong,
   currentNoteIdx: 0,
   currentBeat: -calculateCountIn(initialSong),
   isPlaying: false,
   isRecording: false,
-  tolerance: 20, // cents
+  tolerance: initialTolerance, // cents
   metronomeOn: false,
   status: 'idle',
-  repeatCount: 1,
+  repeatCount: initialRepeatCount,
   currentLoop: 1,
   importedSong: initialImported,
   isFreeMode: false,
