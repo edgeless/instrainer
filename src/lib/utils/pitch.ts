@@ -92,7 +92,9 @@ export function freqToMidi(freq: number): number {
 export function midiToNoteName(midi: number): string {
   if (midi < 0) return '—';
   const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  return notes[midi % 12] + (Math.floor(midi / 12) - 1);
+  // Bass notation (Written Pitch) is 1 octave higher than Scientific Pitch Notation.
+  // Standard C4 is MIDI 60. In this app, MIDI 60 is C5.
+  return notes[midi % 12] + Math.floor(midi / 12);
 }
 
 export type Grade = 'perfect' | 'good' | 'ok' | 'miss';
