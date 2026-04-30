@@ -84,61 +84,6 @@ export function detectPitch(analyserNode: AnalyserNode, pitchBuf: Float32Array |
   return -1;
 }
 
-// High-quality YIN for post-analysis (larger buffer) - although we aren't saving actual PCM samples in the HTML currently, 
-// the original HTML just reused currentCentsHistory and didn't recalculate YIN HQ. Wait, original HTML had `detectPitchHQ` but it was never used in `runPostAnalysis()`.
-// `runPostAnalysis()` only recalculated median of cents history! But let's keep it if needed.
-export function detectPitchHQ(samples: number[], sr: number): number {
-  const n = samples.length;
-  const threshold = 0.08;
-  const minFreq = 30, maxFreq = 1200;
-  const minLag = Math.floor(sr / maxFreq);
-  const maxLag = Math.min(Math.floor(sr / minFreq), Math.floor(n / 2));
-
-  let diff = new Float32Array(maxLag + 1);
-  for (let tau = 1; tau <= maxLag; tau++) {
-    let s = 0;
-    for (let i = 0; i < n - maxLag; i++) {
-      const d = samples[i] - samples[i + tau];
-      s += d * d;
-    }
-    diff[tau] = s;
-  }
-  let cmnd = new Float32Array(maxLag + 1);
-  cmnd[0] = 1;
-  let runSum = 0;
-  for (let tau = 1; tau <= maxLag; tau++) {
-    runSum += diff[tau];
-    cmnd[tau] = runSum === 0 ? 0 : (diff[tau] * tau) / runSum;
-  }
-  let tau = minLag;
-  while (tau < maxLag) {
-    if (cmnd[tau] < threshold) {
-      // Search for local minimum
-      while (tau + 1 < maxLag && cmnd[tau + 1] < cmnd[tau]) {
-        tau++;
-      }
-      
-      let exactTau = tau;
-      if (tau > 0 && tau + 1 <= maxLag) {
-        const a = cmnd[tau - 1], b = cmnd[tau], c = cmnd[tau + 1] || b;
-        const denom = a - 2 * b + c;
-        if (denom !== 0) exactTau += 0.5 * (a - c) / denom;
-      }
-      return sr / exactTau;
-    }
-    tau++;
-  }
-  let best = minLag, bestVal = cmnd[minLag];
-  for (let t = minLag + 1; t <= maxLag; t++) {
-    if (cmnd[t] < bestVal) {
-      bestVal = cmnd[t];
-      best = t;
-    }
-  }
-  if (bestVal < 0.25) return sr / best;
-  return -1;
-}
-
 export function freqToMidi(freq: number): number {
   if (freq <= 0) return 0;
   return Math.round(69 + 12 * Math.log2(freq / 440));
