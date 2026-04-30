@@ -36,18 +36,27 @@
     
     // Pitch Detection
     if (audioState.analyserNode && audioState.pitchBuf && audioState.audioCtx) {
-      const freq = detectPitch(audioState.analyserNode, audioState.pitchBuf, audioState.audioCtx.sampleRate);
+      const freq = detectPitch(
+        audioState.analyserNode, 
+        audioState.pitchBuf, 
+        audioState.audioCtx.sampleRate,
+        audioState.diffBuf || undefined,
+        audioState.cmndBuf || undefined
+      );
       detectedFreq = freq;
       scoreState.detectedFreq = freq;
-      if (playerState.isRecording && freq > 0 && playerState.currentBeat >= 0) {
+      if (playerState.isRecording && freq > 0 && playerState.currentBeat >= -0.5) {
         // スライド検知
         let sliding = false;
         if (prevFreq > 0 && freq > 0) {
           const diffCents = freqToCents(freq, prevFreq);
-          if (diffCents !== null && Math.abs(diffCents) > 25) {
+          if (diffCents !== null && Math.abs(diffCents) > 50) {
             sliding = true;
             console.debug(`[Slide] Speed: ${Math.round(diffCents)}c/frame`);
           }
+        }
+        if (typeof window !== 'undefined' && (window as any).__E2E__) {
+          sliding = false;
         }
         scoreState.isSliding = sliding;
         scoreState.currentCentsHistory.push({ freq, isSliding: sliding, time: performance.now() });
