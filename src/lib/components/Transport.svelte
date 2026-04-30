@@ -704,6 +704,12 @@
       playerState.currentNoteIdx = targetNoteIdx;
     }
   }
+
+  $effect(() => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('player_tolerance', playerState.tolerance.toString());
+    }
+  });
 </script>
 
 <div class="transport">
