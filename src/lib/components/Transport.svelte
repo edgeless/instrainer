@@ -420,6 +420,7 @@
         const expectedNoteTimeMs = playerState.playbackStartTimeMs + (beatOffset * (60 / playerState.song.bpm) * 1000);
         timingDiffMs = (firstSampleTime - audioState.latencyCompensationMs) - expectedNoteTimeMs;
         timingGrade = getTimingGrade(Math.abs(timingDiffMs));
+        console.log(`[Timing] Note ${rs.noteIdx}: diff=${Math.round(timingDiffMs)}ms, grade=${timingGrade}`);
       }
 
       const combinedGrade = getCombinedGrade(pitchGrade, timingGrade);

@@ -7,20 +7,20 @@
   }
 
   let graded = $derived(scoreState.noteResults.filter((r) => r && r.grade));
-  let maxPitchScore = $derived(playerState.song.notes.length * 30);
-  let maxTimingScore = $derived(playerState.song.notes.length * 30);
+  let maxPitchScore = $derived(playerState.song.notes.length * playerState.tolerance);
+  let maxTimingScore = $derived(playerState.song.notes.length * 50); // 50ms as a reasonable perfect threshold
 
   let totalPitchScore = $derived(
     scoreState.noteResults.reduce((sum, r) => {
       if (!r || r.pitchGrade === 'miss' || r.avgCents === null) return sum;
-      return sum + Math.max(0, 30 - Math.abs(r.avgCents));
+      return sum + Math.max(0, playerState.tolerance - Math.abs(r.avgCents));
     }, 0)
   );
 
   let totalTimingScore = $derived(
     scoreState.noteResults.reduce((sum, r) => {
       if (!r || r.timingGrade === 'miss' || r.timingDiffMs === null || r.timingDiffMs === undefined) return sum;
-      return sum + Math.max(0, 30 - (Math.abs(r.timingDiffMs) * 30 / 200)); // Map 200ms to 0 points
+      return sum + Math.max(0, 50 - Math.abs(r.timingDiffMs)); 
     }, 0)
   );
 
