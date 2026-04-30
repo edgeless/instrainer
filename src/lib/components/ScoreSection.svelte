@@ -251,12 +251,12 @@
       });
 
       // 小節番号・小節線
-      html += `<text x="${layout.startX}" y="${staffTop - 4}" font-size="7" fill="rgba(255,255,255,0.25)" font-family="'Space Mono',monospace">${layout.rowStartMeasure + 1}</text>`;
+      html += `<text x="${layout.startX}" y="${staffTop - 4}" font-size="7" fill="rgba(255,255,255,0.25)" font-family="'Space Mono',monospace">${escapeHtml(layout.rowStartMeasure + 1)}</text>`;
       layout.elements.forEach((el, j) => {
         if (el.type === 'bar') {
           const bx = layout.elPositions[j];
           html += `<line x1="${bx}" y1="${staffTop}" x2="${bx}" y2="${staffTop + staffH}" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>`;
-          html += `<text x="${bx + 3}" y="${staffTop - 4}" font-size="7" fill="rgba(255,255,255,0.25)" font-family="'Space Mono',monospace">${el.measureNum}</text>`;
+          html += `<text x="${bx + 3}" y="${staffTop - 4}" font-size="7" fill="rgba(255,255,255,0.25)" font-family="'Space Mono',monospace">${escapeHtml(el.measureNum)}</text>`;
         }
       });
 
@@ -402,10 +402,10 @@
         if (el.type === 'bar') {
           const bx = layout.elPositions[j];
           html += `<div class="tab-bar-line" style="left:${bx}px;height:78px;top:20px;"></div>`;
-          html += `<span style="position:absolute;top:5px;left:${bx+3}px;font-size:7px;color:rgba(255,255,255,0.25);">${el.measureNum}</span>`;
+          html += `<span style="position:absolute;top:5px;left:${bx+3}px;font-size:7px;color:rgba(255,255,255,0.25);">${escapeHtml(el.measureNum)}</span>`;
         }
       });
-      html += `<span style="position:absolute;top:5px;left:${layout.startX}px;font-size:7px;color:rgba(255,255,255,0.25);">${layout.rowStartMeasure+1}</span>`;
+      html += `<span style="position:absolute;top:5px;left:${layout.startX}px;font-size:7px;color:rgba(255,255,255,0.25);">${escapeHtml(layout.rowStartMeasure+1)}</span>`;
 
       // ノート
       notes.forEach((note, i) => {
