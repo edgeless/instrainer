@@ -21,11 +21,6 @@ interface PlayerState {
 
 // 初期化時に localStorage からインポート曲を読み込む
 let initialImported: Song | null = null;
-let initialSongKey = 'c_major';
-let initialBpm: number | null = null;
-let initialRepeatCount = 1;
-let initialTolerance = 20;
-
 if (browser) {
   const saved = localStorage.getItem('imported_song');
   if (saved) {
@@ -35,73 +30,25 @@ if (browser) {
       console.error("Failed to load imported song", e);
     }
   }
-
-  const savedKey = localStorage.getItem('player_song_key');
-  if (savedKey) {
-    if (savedKey === 'imported' && initialImported) {
-      initialSongKey = 'imported';
-    } else if (SONGS[savedKey]) {
-      initialSongKey = savedKey;
-    }
-  } else if (initialImported) {
-    initialSongKey = 'imported';
-  }
-
-  const savedBpm = localStorage.getItem('player_bpm');
-  if (savedBpm) {
-    const bpm = parseInt(savedBpm, 10);
-    if (!isNaN(bpm) && bpm >= 10 && bpm <= 300) {
-      initialBpm = bpm;
-    }
-  }
-
-  const savedRepeat = localStorage.getItem('player_repeat');
-  if (savedRepeat) {
-    const repeat = parseInt(savedRepeat, 10);
-    if (!isNaN(repeat) && repeat >= 1 && repeat <= 99) {
-      initialRepeatCount = repeat;
-    }
-  }
-
-  const savedTolerance = localStorage.getItem('player_tolerance');
-  if (savedTolerance) {
-    const tol = parseInt(savedTolerance, 10);
-    if (!isNaN(tol) && tol >= 5 && tol <= 50) {
-      initialTolerance = tol;
-    }
-  }
-}
-
-function calculateCountIn(song: Song) {
-  return song.timeSignature?.[0] ?? 4;
-}
-
-const initialSong = (initialSongKey === 'imported' && initialImported ? initialImported : SONGS[initialSongKey]) as Song;
-if (initialBpm) {
-  initialSong.bpm = initialBpm;
 }
 
 export const playerState = $state<PlayerState>({
-  currentSongKey: initialSongKey,
-  song: initialSong,
+  currentSongKey: initialImported ? 'imported' : 'c_major',
+  song: (initialImported || SONGS['c_major']) as Song,
   currentNoteIdx: 0,
-  currentBeat: -calculateCountIn(initialSong),
+  currentBeat: -4,
   isPlaying: false,
   isRecording: false,
-  tolerance: initialTolerance, // cents
+  tolerance: 20, // cents
   metronomeOn: false,
   status: 'idle',
-  repeatCount: initialRepeatCount,
+  repeatCount: 1,
   currentLoop: 1,
   importedSong: initialImported,
   isFreeMode: false,
   playbackStartTimeMs: null,
   isDemoPlaying: false,
 });
-
-export function getCountInBeats() {
-  return calculateCountIn(playerState.song);
-}
 
 export function setSong(arg: string | Song) {
   if (typeof arg === 'string') {
@@ -123,7 +70,7 @@ export function setSong(arg: string | Song) {
   }
   
   playerState.currentNoteIdx = 0;
-  playerState.currentBeat = -getCountInBeats();
+  playerState.currentBeat = -4;
   playerState.currentLoop = 1;
 }
 
@@ -163,8 +110,9 @@ export function getDisplayBeat() {
       if (playerState.isFreeMode) {
         return elapsedMs / (secPerBeat * 1000);
       } else {
-        const countIn = getCountInBeats();
-        return (elapsedMs / (secPerBeat * 1000)) - countIn;
+        // TODO: 4拍固定になっているため、4/4拍子以外(3/4等)では不整合が起きる。
+        // 今後 playerState.song.timeSignature[0] を参照するよう修正が必要。
+        return (elapsedMs / (secPerBeat * 1000)) - 4; // offset by 4 for count-in
       }
     }
   }

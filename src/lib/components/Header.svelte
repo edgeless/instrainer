@@ -78,14 +78,6 @@
       transportRef.toggleDemoPlay();
     }
   }
-
-  $effect(() => {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('player_song_key', playerState.currentSongKey);
-      localStorage.setItem('player_bpm', playerState.song.bpm.toString());
-      localStorage.setItem('player_repeat', playerState.repeatCount.toString());
-    }
-  });
 </script>
 
 <header>
