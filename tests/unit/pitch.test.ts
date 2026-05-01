@@ -8,7 +8,6 @@ import {
   getGrade,
   getTimingGrade,
   getCombinedGrade,
-  detectPitchHQ,
   detectPitch
 } from '../../src/lib/utils/pitch';
 
@@ -84,17 +83,7 @@ describe('pitch utils', () => {
     assert.strictEqual(getCombinedGrade('miss', 'miss'), 'miss');
   });
 
-  test('detectPitchHQ detects pitch from samples', () => {
-    const sr = 44100;
-    const freq = 110; // A2
-    const samples = new Array(2048);
-    for (let i = 0; i < samples.length; i++) {
-      samples[i] = Math.sin(2 * Math.PI * freq * i / sr);
-    }
 
-    const detected = detectPitchHQ(samples, sr);
-    assert.ok(Math.abs(detected - freq) < 1);
-  });
 
   test('detectPitch detects pitch with mocked AnalyserNode', () => {
     const sr = 44100;

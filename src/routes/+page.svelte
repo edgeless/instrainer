@@ -7,7 +7,7 @@
   import Transport from '$lib/components/Transport.svelte';
   import ResultOverlay from '$lib/components/ResultOverlay.svelte';
   import { playerState, setSong } from '$lib/stores/player.svelte';
-  import { audioState } from '$lib/stores/audio.svelte';
+  import { audioState, requestMic } from '$lib/stores/audio.svelte';
   import { scoreState } from '$lib/stores/score.svelte';
   import FreeScoreArea from '$lib/components/FreeScoreArea.svelte';
   import FreeScorePanel from '$lib/components/FreeScorePanel.svelte';
@@ -17,7 +17,7 @@
 
   onMount(() => {
     if (typeof window !== 'undefined') {
-      (window as any).__states = { audioState, playerState, scoreState, setSong };
+      (window as any).__states = { audioState, playerState, scoreState, setSong, requestMic };
     }
   });
 </script>

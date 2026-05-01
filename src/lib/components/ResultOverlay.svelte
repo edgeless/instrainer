@@ -7,20 +7,20 @@
   }
 
   let graded = $derived(scoreState.noteResults.filter((r) => r && r.grade));
-  let maxPitchScore = $derived(playerState.song.notes.length * 30);
-  let maxTimingScore = $derived(playerState.song.notes.length * 30);
+  let maxPitchScore = $derived(playerState.song.notes.length * playerState.tolerance);
+  let maxTimingScore = $derived(playerState.song.notes.length * 50); // 50ms as a reasonable perfect threshold
 
   let totalPitchScore = $derived(
     scoreState.noteResults.reduce((sum, r) => {
       if (!r || r.pitchGrade === 'miss' || r.avgCents === null) return sum;
-      return sum + Math.max(0, 30 - Math.abs(r.avgCents));
+      return sum + Math.max(0, playerState.tolerance - Math.abs(r.avgCents));
     }, 0)
   );
 
   let totalTimingScore = $derived(
     scoreState.noteResults.reduce((sum, r) => {
       if (!r || r.timingGrade === 'miss' || r.timingDiffMs === null || r.timingDiffMs === undefined) return sum;
-      return sum + Math.max(0, 30 - (Math.abs(r.timingDiffMs) * 30 / 200)); // Map 200ms to 0 points
+      return sum + Math.max(0, 50 - Math.abs(r.timingDiffMs)); 
     }, 0)
   );
 
@@ -172,7 +172,7 @@
 .rc-title { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 4px; color: var(--accent); }
 .rc-sub { font-size: 10px; color: var(--muted); font-family: 'Space Mono', monospace; margin-bottom: 20px; }
 .rc-score-big { text-align: center; padding: 20px; background: var(--panel2); border-radius: 8px; margin-bottom: 16px; }
-.rc-num { font-family: 'Bebas Neue', sans-serif; font-size: 88px; line-height: 1; background: linear-gradient(135deg, var(--accent2), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.rc-num { font-family: 'Bebas Neue', sans-serif; font-size: 88px; line-height: 1; background: linear-gradient(135deg, var(--accent2), var(--accent)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 .rc-grade { font-family: 'Space Mono', monospace; font-size: 12px; color: var(--accent); letter-spacing: 3px; }
 .rc-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; }
 .rc-stat { background: var(--panel2); border: 1px solid var(--border); border-radius: 4px; padding: 10px; text-align: center; }
