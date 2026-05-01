@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import path from 'path';
 
 export default defineConfig({
 	timeout: 300000,
@@ -26,10 +27,9 @@ export default defineConfig({
 				...devices['Desktop Chrome'],
 				launchOptions: {
 					args: [
-						'--use-fake-device-for-media-stream',
 						'--use-fake-ui-for-media-stream',
-						'--use-file-for-fake-audio-capture=tests/assets/c_major_perfect.wav',
-						'--allow-file-access-from-files'
+						'--use-fake-device-for-media-stream',
+						'--autoplay-policy=no-user-gesture-required'
 					]
 				}
 			},

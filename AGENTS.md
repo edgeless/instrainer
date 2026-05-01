@@ -39,13 +39,14 @@ AIコーディングエージェント向けの文書です。このドキュメ
   - Effect: `$effect(() => { console.log(count); });`
 - **E2Eテスト**: `evaluation.spec.ts` での精度検証時、下記のように設定を行います。
   ```typescript
-  const songName = await page.evaluate(() => {
+  const songName = await page.evaluate(({ tol }) => {
     const { setSong, playerState, audioState } = (window as any).__states;
+    (window as any).__E2E__ = true;
     if (setSong) setSong('c_major');
-    playerState.tolerance = 60; 
-    audioState.latencyCompensationMs = 260; // Final calibrated value for BPM 60
+    playerState.tolerance = tol;
+    audioState.latencyCompensationMs = 20; // Direct injection has minimal latency
     return playerState.song.name;
-  });
+  }, { tol: tolerance });
   ```
 
 ## 5. UI/UX ルール
@@ -210,10 +211,11 @@ npm run test       # 両方を実行
 ### E2E精度評価の安定化 (Robustness)
 `evaluation.spec.ts` では、環境依存のオーディオ問題を回避するため以下の仕組みを導入しています：
 - **動的サンプリングレート同期**: テスト開始時にブラウザの `AudioContext` から実効レートを取得し、それに合わせたテスト音源（WAV）を動的に再生成します。
-- **ピッチ・キャリブレーション**: Chromium の仮想デバイス（fake audio）固有の周波数ズレ（約 108 セント）を補正するため、音源生成時に逆オフセットを適用しています。
+- **Web Audio API 直接インジェクション**: Chromium の `--use-file-for-fake-audio-capture` フラグはプラットフォーム間でピッチシフトやタイミングズレを引き起こすため使用しません。代わりに、テスト用WAVファイルを Node.js で Base64 エンコードし、ブラウザ内で `AudioContext.decodeAudioData()` → `AudioBufferSourceNode` として直接 `AnalyserNode` に接続します。これにより、OS の仮想オーディオドライバを完全にバイパスし、クロスプラットフォームで一貫した結果を得ます。
 - **ハイドレーション待機**: CSP 違反を避けるため、`page.evaluate` によるポーリングで `window.__states` の初期化を確実に待機します。
-- **ダイレクト操作**: UI の不確定要素を排除するため、`requestMic` などを直接状態管理経由で呼び出します。
+- **ダイレクト操作**: UI の不確定要素を排除するため、状態管理経由で直接 `micGranted` を設定します。
 - **Vite監視除外**: テスト中の音源更新によるサーバー再起動を防ぐため、`tests/assets/` は Vite の監視対象から除外されています。
+- **ピッチシフト検出テスト**: `detect_shift.spec.ts` は Chromium の仮想マイクデバイスが生成するデフォルトの 440Hz テストトーンに対するピッチ偏差を計測する診断用テストです。`evaluation.spec.ts` とファイルを共有しないため、並列実行しても安全です。
 
 また、ローカルでクリーンなコンテナ環境を利用する場合は `compose.test.yaml` を使用できます：
 ```bash

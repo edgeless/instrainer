@@ -87,10 +87,9 @@ if __name__ == "__main__":
         {"beat": 14, "dur": 2, "midi": 36},  # C2
     ]
 
-    # Calibration offset: -108 cents to match Chromium fake audio pipeline shift (macOS only)
+    # No calibration offset needed: E2E tests use direct Web Audio API injection,
+    # bypassing Chromium's fake audio pipeline entirely.
     calibration_ratio = 1.0
-    if sys.platform == 'darwin':
-        calibration_ratio = math.pow(2, -108 / 1200)
     
     # Perfect (Calibrated)
     notes_perfect = [{"beat": n["beat"], "dur": n["dur"], "freq": midi_to_freq(n["midi"]) * calibration_ratio} for n in c_major_midi]

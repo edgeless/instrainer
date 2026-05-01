@@ -1,4 +1,5 @@
 import { test, expect, type Browser, type Page } from '@playwright/test';
+import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 
@@ -11,7 +12,7 @@ import { execSync } from 'child_process';
  * Robustness features:
  * 1. Dynamic sample rate detection & asset generation.
  * 2. CSP-compliant hydration waiting (polling).
- * 3. Direct state manipulation (requestMic) to avoid UI flakiness.
+ * 3. Direct Web Audio API injection (bypasses Chromium fake audio pipeline).
  * 4. Calibrated latency compensation for E2E.
  */
 
@@ -50,7 +51,7 @@ test.describe('Evaluation Tests', () => {
     page.on('pageerror', err => console.log(`BROWSER [error]: ${err.message}`));
 
     await page.goto('http://localhost:5173/', { waitUntil: 'networkidle', timeout: 30000 });
-    
+
     // Polling for hydration
     let hydrated = false;
     for (let i = 0; i < 60; i++) {
@@ -64,19 +65,55 @@ test.describe('Evaluation Tests', () => {
       const { setSong, playerState, audioState } = (window as any).__states;
       (window as any).__E2E__ = true;
       if (setSong) setSong('c_major');
-      playerState.tolerance = tol; 
-      audioState.latencyCompensationMs = 20; 
+      playerState.tolerance = tol;
+      audioState.latencyCompensationMs = 20;
       return playerState.song.name;
     }, { tol: tolerance });
-    
-    // Direct requestMic to setup streams
-    await page.evaluate(async () => {
-      const { requestMic } = (window as any).__states;
-      await requestMic();
+
+    const wavBase64 = fs.readFileSync(path.resolve(`tests/assets/${audioFileName}`)).toString('base64');
+
+    // Direct injection to setup streams
+    await page.evaluate(async ({ wavBase64 }) => {
+      const { audioState } = (window as any).__states;
+      if (!audioState.audioCtx) {
+        const AC = window.AudioContext || (window as any).webkitAudioContext;
+        audioState.audioCtx = new AC();
+      }
+      if (audioState.audioCtx.state === 'suspended') {
+        await audioState.audioCtx.resume();
+      }
+      
+      const binaryString = atob(wavBase64);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const audioBuffer = await audioState.audioCtx.decodeAudioData(bytes.buffer);
+      
+      audioState.analyserNode = audioState.audioCtx.createAnalyser();
+      audioState.analyserNode.fftSize = 4096;
+      audioState.analyserNode.smoothingTimeConstant = 0.1;
+      audioState.pitchBuf = new Float32Array(4096);
+      
+      const source = audioState.audioCtx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioState.analyserNode);
+      
+      (window as any).__E2E_SOURCE__ = source;
+      audioState.micGranted = true;
+      audioState.micStream = null; // Disable MediaRecorder
+    }, { wavBase64 });
+
+    await page.bringToFront();
+
+    // Trigger source exactly when clicking rec
+    await page.evaluate(() => {
+      (window as any).__E2E_SOURCE__.start();
     });
 
-    await page.waitForTimeout(500); 
     await page.locator('.tbtn.rec').click();
+    console.log(`[${audioFileName}] Recording started...`);
 
     // Wait for song end (20s) + buffer
     await expect(page.locator(".status-chip.sc-idle")).toBeVisible({ timeout: 40000 });
@@ -94,12 +131,9 @@ test.describe('Evaluation Tests', () => {
   }
 
   test('perfect audio file evaluates pitch and timing successfully', async () => {
-    // Note: Tolerance 150 accounts for consistent offset in Chromium fake audio pipeline.
-    // The pitch score threshold is set to 40% to reflect current calibration status.
     const { pitchVal, timingVal } = await runEvalTest('c_major_perfect.wav', 150);
     console.log(`[ASSERT] perfect: pitch=${pitchVal}, timing=${timingVal}`);
-    const isWindows = process.platform === 'win32';
-    expect(pitchVal).toBeGreaterThan(isWindows ? 10 : 40); 
-    expect(timingVal).toBeGreaterThan(80);
+    expect(pitchVal).toBeGreaterThan(80); // NEVER change this value!! 
+    expect(timingVal).toBeGreaterThan(80); // NEVER change this value!!
   });
 });
