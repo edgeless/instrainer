@@ -95,7 +95,8 @@ if __name__ == "__main__":
     # Perfect (Calibrated)
     notes_perfect = [{"beat": n["beat"], "dur": n["dur"], "freq": midi_to_freq(n["midi"]) * calibration_ratio} for n in c_major_midi]
     generate_wav('c_major_perfect.wav', notes_perfect, bpm, sample_rate=target_sample_rate)
-    print("[OK] c_major_perfect.wav (Calibrated -108c)")
+    suffix = " (Calibrated -108c)" if sys.platform == 'darwin' else ""
+    print(f"[OK] c_major_perfect.wav{suffix}")
 
     # Good pitch (~15 cents sharp)
     notes_good_pitch = [{"beat": n["beat"], "dur": n["dur"], "freq": n["freq"] * math.pow(2, 15/1200)} for n in notes_perfect]
