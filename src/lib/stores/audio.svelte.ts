@@ -155,9 +155,7 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
       }
     }
     
-    if (audioState.micSource) {
-      try { audioState.micSource.disconnect(); } catch(e) {}
-    }
+    // micSource is already disconnected and set to null at the beginning of the function
     audioState.micSource = audioState.audioCtx.createMediaStreamSource(stream);
     audioState.micSource.connect(audioState.analyserNode!);
     
