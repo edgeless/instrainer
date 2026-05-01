@@ -87,27 +87,29 @@ if __name__ == "__main__":
         {"beat": 14, "dur": 2, "midi": 36},  # C2
     ]
 
-    # Calibration offset: -108 cents to match Chromium fake audio pipeline shift
-    calibration_ratio = math.pow(2, -108 / 1200)
+    # Calibration offset: -108 cents to match Chromium fake audio pipeline shift (macOS only)
+    calibration_ratio = 1.0
+    if sys.platform == 'darwin':
+        calibration_ratio = math.pow(2, -108 / 1200)
     
     # Perfect (Calibrated)
     notes_perfect = [{"beat": n["beat"], "dur": n["dur"], "freq": midi_to_freq(n["midi"]) * calibration_ratio} for n in c_major_midi]
     generate_wav('c_major_perfect.wav', notes_perfect, bpm, sample_rate=target_sample_rate)
-    print("✔ c_major_perfect.wav (Calibrated -108c)")
+    print("[OK] c_major_perfect.wav (Calibrated -108c)")
 
     # Good pitch (~15 cents sharp)
     notes_good_pitch = [{"beat": n["beat"], "dur": n["dur"], "freq": n["freq"] * math.pow(2, 15/1200)} for n in notes_perfect]
     generate_wav('c_major_good_pitch.wav', notes_good_pitch, bpm, sample_rate=target_sample_rate)
-    print("✔ c_major_good_pitch.wav")
+    print("[OK] c_major_good_pitch.wav")
 
     # Good timing (80ms late)
     late_beats = 0.08 / (60.0 / bpm)
     notes_good_timing = [{"beat": n["beat"] + late_beats, "dur": n["dur"], "freq": n["freq"]} for n in notes_perfect]
     generate_wav('c_major_good_timing.wav', notes_good_timing, bpm, sample_rate=target_sample_rate)
-    print("✔ c_major_good_timing.wav")
+    print("[OK] c_major_good_timing.wav")
 
     # Silent
     generate_wav('silent.wav', [], bpm, sample_rate=target_sample_rate)
-    print("✔ silent.wav")
+    print("[OK] silent.wav")
 
     print("Done!")

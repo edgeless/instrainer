@@ -155,9 +155,6 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
       }
     }
     
-    if (audioState.micSource) {
-      try { audioState.micSource.disconnect(); } catch(e) {}
-    }
     audioState.micSource = audioState.audioCtx.createMediaStreamSource(stream);
     audioState.micSource.connect(audioState.analyserNode!);
     
