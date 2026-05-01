@@ -244,27 +244,17 @@
       html += `<line x1="${layout.startX - 2}" y1="${staffTop}" x2="${layout.startX - 2}" y2="${staffTop + staffH}" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>`;
       html += `<line x1="${layout.endX}" y1="${staffTop}" x2="${layout.endX}" y2="${staffTop + staffH}" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>`;
 
-      // 全体ノート情報のインデックスをマッピング
-      const nodeLayoutMap = new Map<number, number>();
-      layout.elements.forEach((el, j) => {
-        if (el.type === 'note') nodeLayoutMap.set(el.noteIdx, layout.elPositions[j]);
-      });
-
       // 小節番号・小節線
       html += `<text x="${layout.startX}" y="${staffTop - 4}" font-size="7" fill="rgba(255,255,255,0.25)" font-family="'Space Mono',monospace">${escapeHtml(layout.rowStartMeasure + 1)}</text>`;
       layout.elements.forEach((el, j) => {
+        const x = layout.elPositions[j];
         if (el.type === 'bar') {
-          const bx = layout.elPositions[j];
-          html += `<line x1="${bx}" y1="${staffTop}" x2="${bx}" y2="${staffTop + staffH}" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>`;
-          html += `<text x="${bx + 3}" y="${staffTop - 4}" font-size="7" fill="rgba(255,255,255,0.25)" font-family="'Space Mono',monospace">${escapeHtml(el.measureNum)}</text>`;
-        }
-      });
-
-      // ノート
-      notes.forEach((note, i) => {
-        if (note.beat < layout.rowStartBeat || note.beat >= layout.rowEndBeat) return;
-        let x = nodeLayoutMap.get(i)!;
-        const y = getNoteY(note.name, staffTop, lineSpacing);
+          html += `<line x1="${x}" y1="${staffTop}" x2="${x}" y2="${staffTop + staffH}" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>`;
+          html += `<text x="${x + 3}" y="${staffTop - 4}" font-size="7" fill="rgba(255,255,255,0.25)" font-family="'Space Mono',monospace">${escapeHtml(el.measureNum)}</text>`;
+        } else if (el.type === 'note') {
+          const i = el.noteIdx;
+          const note = notes[i];
+          const y = getNoteY(note.name, staffTop, lineSpacing);
 
         let noteState = 'upcoming';
         if (i < playerState.currentNoteIdx) noteState = 'played';
@@ -364,6 +354,7 @@
         if (noteState === 'current') {
           html += `<circle cx="${x}" cy="${y}" r="11" fill="none" stroke="${col}" stroke-width="1.5" opacity="0.4"/>`;
         }
+      }
       });
 
       rows.push(`<svg viewBox="0 0 ${W} ${rowH}" width="${W}" height="${rowH}" style="display:block;margin-bottom:4px;">${html}</svg>`);
@@ -398,22 +389,18 @@
       html += `<div class="tab-bar-line" style="left:${layout.startX-2}px;height:78px;top:20px;"></div>`;
       html += `<div class="tab-bar-line" style="left:${layout.endX}px;height:78px;top:20px;"></div>`;
 
-      layout.elements.forEach((el, j) => {
-        if (el.type === 'bar') {
-          const bx = layout.elPositions[j];
-          html += `<div class="tab-bar-line" style="left:${bx}px;height:78px;top:20px;"></div>`;
-          html += `<span style="position:absolute;top:5px;left:${bx+3}px;font-size:7px;color:rgba(255,255,255,0.25);">${escapeHtml(el.measureNum)}</span>`;
-        }
-      });
       html += `<span style="position:absolute;top:5px;left:${layout.startX}px;font-size:7px;color:rgba(255,255,255,0.25);">${escapeHtml(layout.rowStartMeasure+1)}</span>`;
 
-      // ノート
-      notes.forEach((note, i) => {
-        if (note.beat < layout.rowStartBeat || note.beat >= layout.rowEndBeat) return;
-
-        let x = layout.elPositions[layout.elements.findIndex(el => el.type === 'note' && el.noteIdx === i)];
-        const sidx = STRINGS.indexOf(note.string);
-        if (sidx === -1) return;
+      layout.elements.forEach((el, j) => {
+        const x = layout.elPositions[j];
+        if (el.type === 'bar') {
+          html += `<div class="tab-bar-line" style="left:${x}px;height:78px;top:20px;"></div>`;
+          html += `<span style="position:absolute;top:5px;left:${x+3}px;font-size:7px;color:rgba(255,255,255,0.25);">${escapeHtml(el.measureNum)}</span>`;
+        } else if (el.type === 'note') {
+          const i = el.noteIdx;
+          const note = notes[i];
+          const sidx = STRINGS.indexOf(note.string);
+          if (sidx === -1) return;
 
         const y = 20 + sidx * 20;
         let state = i < playerState.currentNoteIdx ? 'tc-played' : i === playerState.currentNoteIdx ? 'tc-current' : '';
@@ -451,6 +438,7 @@
         }
 
         html += `<div style="position:absolute;top:104px;left:${(hasGhost ? ghostX : x)-10}px;width:20px;text-align:center;font-size:8px;color:${beatCol};font-family:'Space Mono',monospace;">${escapeHtml(beatNum)}</div>`;
+      }
       });
 
       html += `</div>`;
