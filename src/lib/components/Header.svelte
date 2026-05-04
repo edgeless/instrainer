@@ -4,6 +4,7 @@
   import { SONGS } from '$lib/utils/songs';
   import { parseIRealURI } from '$lib/utils/ireal';
   import type Transport from './Transport.svelte';
+  import AIGeneratorModal from './AIGeneratorModal.svelte';
 
   let { transportRef } = $props<{ transportRef: ReturnType<typeof Transport> | undefined }>();
 
@@ -73,6 +74,8 @@
   let audioInputs = $derived(audioState.devices.filter(d => d.kind === 'audioinput'));
   let audioOutputs = $derived(audioState.devices.filter(d => d.kind === 'audiooutput'));
 
+  let isAIModalOpen = $state(false);
+
   function onDemoToggle() {
     if (transportRef && typeof transportRef.toggleDemoPlay === 'function') {
       transportRef.toggleDemoPlay();
@@ -125,6 +128,9 @@
       <button class="btn-import" onclick={onImportIReal} title={i18n.importTitle} disabled={playerState.isFreeMode}>
         IRB
       </button>
+      <button class="btn-ai" onclick={() => isAIModalOpen = true} title="AIで曲を生成" disabled={playerState.isFreeMode || playerState.status !== 'idle'}>
+        ✨ AI
+      </button>
     </div>
     <div class="bpm-box" role="spinbutton" tabindex="-1" onwheel={onRepeatWheel} title={i18n.scrollHint}>
       {i18n.repeat} <span class="bpm-val {playerState.status !== 'idle' || playerState.isFreeMode ? 'disabled' : ''}">{playerState.repeatCount}</span>
@@ -148,6 +154,8 @@
   </div>
 </header>
 
+<AIGeneratorModal bind:isOpen={isAIModalOpen} />
+
 <style>
 header {
   position: relative; z-index: 10;
@@ -170,12 +178,16 @@ header {
 .btn-demo.active { background: var(--accent); color: #000; }
 .btn-demo:disabled { opacity: 0.5; cursor: not-allowed; border-color: var(--border); background: var(--panel2); color: var(--muted); }
 
-.btn-import { 
+.btn-import, .btn-ai {
   background: var(--accent); color: #000; border: none; padding: 6px 8px; border-radius: 4px;
   font-family: 'Bebas Neue', sans-serif; font-size: 14px; cursor: pointer; transition: all 0.2s;
   height: 30px; display: flex; align-items: center; justify-content: center;
 }
-.btn-import:hover { background: #fff; transform: scale(1.05); }
+.btn-ai {
+  background: var(--accent2);
+}
+.btn-ai:disabled { opacity: 0.5; cursor: not-allowed; background: var(--panel2); color: var(--muted); }
+.btn-import:hover, .btn-ai:hover:not(:disabled) { background: #fff; transform: scale(1.05); }
 
 select.song-sel, select.device-sel {
   background: var(--panel2); border: 1px solid var(--border); color: var(--text);
