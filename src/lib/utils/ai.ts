@@ -11,6 +11,13 @@ const MODEL_ID = 'onnx-community/Bonsai-1.7B-ONNX';
 let generatorInstance: any = null;
 let isInitializing = false;
 
+// Mock function for tests
+let mockGenerator: any = null;
+
+export function setMockGenerator(mock: any) {
+  mockGenerator = mock;
+}
+
 export type ProgressCallback = (info: { status: string; name?: string; file?: string; progress?: number; loaded?: number; total?: number }) => void;
 
 const SYSTEM_PROMPT = `あなたはプロのベーシストです。ユーザーの指示に従い、ベースのフレーズをJSON形式で出力してください。
@@ -37,6 +44,7 @@ type Song = {
 `;
 
 export async function initAI(onProgress?: ProgressCallback) {
+  if (mockGenerator) return mockGenerator;
   if (generatorInstance) return generatorInstance;
   if (isInitializing) {
     // Wait for the existing initialization to finish (simple polling)
