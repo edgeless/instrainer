@@ -170,7 +170,7 @@ header {
 .btn-demo.active { background: var(--accent); color: #000; }
 .btn-demo:disabled { opacity: 0.5; cursor: not-allowed; border-color: var(--border); background: var(--panel2); color: var(--muted); }
 
-.btn-import { 
+.btn-import {
   background: var(--accent); color: #000; border: none; padding: 6px 8px; border-radius: 4px;
   font-family: 'Bebas Neue', sans-serif; font-size: 14px; cursor: pointer; transition: all 0.2s;
   height: 30px; display: flex; align-items: center; justify-content: center;
