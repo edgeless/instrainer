@@ -28,8 +28,7 @@ export function detectPitch(
     rms += buf[i] * buf[i];
   }
   rms = Math.sqrt(rms / n);
-  const isE2E = typeof window !== 'undefined' && (window as any).__E2E__;
-  const rmsThreshold = isE2E ? 0.005 : 0.015;
+  const rmsThreshold = 0.015;
   if (rms < rmsThreshold) {
     return -1;
   }

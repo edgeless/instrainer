@@ -55,9 +55,6 @@
             console.debug(`[Slide] Speed: ${Math.round(diffCents)}c/frame`);
           }
         }
-        if (typeof window !== 'undefined' && (window as any).__E2E__) {
-          sliding = false;
-        }
         scoreState.isSliding = sliding;
         scoreState.currentCentsHistory.push({ freq, isSliding: sliding, time: performance.now() });
 
