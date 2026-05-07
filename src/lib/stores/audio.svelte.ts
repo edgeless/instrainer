@@ -33,6 +33,11 @@ export const audioState = $state<{
   selectedOutputId: string;
   recordedAudioUrl: string | null;
   masterVolume: number;
+  /** 
+   * システム全体のレイテンシ補正値 (ms)。
+   * Transport.svelte でさらに周波数依存の YIN 遅延補正 (3.0周期分) が加算されます。
+   * E2Eテスト環境では、1音目の検知時に動的にキャリブレーションされます。
+   */
   latencyCompensationMs: number;
 }>({
   audioCtx: null,

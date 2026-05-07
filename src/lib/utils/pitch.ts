@@ -119,6 +119,14 @@ export function getGrade(absCents: number, tolerance: number): Grade {
   return 'miss';
 }
 
+/**
+ * タイミングの判定グレードを返します。
+ * 
+ * 注意: ResultOverlay.svelte でのスコア計算では 100ms を 0点としています。
+ * そのため、'good' (50-100ms) 判定であっても、スコアとしては低い値（0%〜50%）になります。
+ * これは、プロフェッショナルな練習においては 100ms 以上のズレは「精度点としては不合格」
+ * という厳格な評価方針に基づいています。
+ */
 export function getTimingGrade(absDiffMs: number): Grade {
   if (absDiffMs <= 50) return 'perfect';
   if (absDiffMs <= 100) return 'good';
