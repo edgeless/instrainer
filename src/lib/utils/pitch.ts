@@ -108,10 +108,14 @@ export function midiToNoteName(midi: number): string {
 
 export type Grade = 'perfect' | 'good' | 'ok' | 'miss';
 
+/**
+ * イントネーションの正確さを判定します。
+ * ユーザー要望に基づき、OK判定を15セント以内とする非常に厳しいプロフェッショナル基準を適用。
+ */
 export function getGrade(absCents: number, tolerance: number): Grade {
-  if (absCents <= tolerance * 0.4) return 'perfect';
-  if (absCents <= tolerance * 0.7) return 'good';
-  if (absCents <= tolerance) return 'ok';
+  if (absCents <= tolerance * 0.4) return 'perfect'; // < 6c
+  if (absCents <= tolerance * 0.7) return 'good';    // < 10.5c
+  if (absCents <= tolerance) return 'ok';           // < 15c
   return 'miss';
 }
 
