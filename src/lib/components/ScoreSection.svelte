@@ -1,6 +1,5 @@
 <script lang="ts">
   import { playerState, getOriginalBeats, getDisplayBeat } from '$lib/stores/player.svelte';
-  import { scoreState } from '$lib/stores/score.svelte';
   import { escapeHtml } from '$lib/utils/security';
   
   let viewMode = $state('both');
@@ -44,8 +43,6 @@
     void playerState.isPlaying;
     void playerState.isRecording;
     void playerState.currentNoteIdx;
-    // noteResultsの要素自体の更新（lengthが変わらない場合）も追跡するため、スプレッド展開して参照
-    void [...scoreState.noteResults];
     requestAnimationFrame(renderScore);
   });
 
@@ -212,13 +209,6 @@
       upcoming: 'rgba(255,255,255,0.25)'
     };
 
-    const GRADE_COLORS: Record<string, string> = {
-      perfect: 'var(--accent2)',
-      good: 'var(--accent)',
-      ok: 'var(--warn)',
-      miss: 'var(--danger)'
-    };
-
     const rows: string[] = [];
 
     for (let row = 0; row < totalRows; row++) {
@@ -245,116 +235,77 @@
       html += `<line x1="${layout.endX}" y1="${staffTop}" x2="${layout.endX}" y2="${staffTop + staffH}" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>`;
 
       // 小節番号・小節線
-      html += `<text x="${layout.startX}" y="${staffTop - 4}" font-size="7" fill="rgba(255,255,255,0.25)" font-family="'Space Mono',monospace">${escapeHtml(layout.rowStartMeasure + 1)}</text>`;
+      html += `<text x="${layout.startX}" y="${staffTop - 4}" font-size="7" fill="rgba(255,255,255,0.25)" font-family="'Space Mono',monospace">${layout.rowStartMeasure + 1}</text>`;
       layout.elements.forEach((el, j) => {
         const x = layout.elPositions[j];
         if (el.type === 'bar') {
           html += `<line x1="${x}" y1="${staffTop}" x2="${x}" y2="${staffTop + staffH}" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>`;
-          html += `<text x="${x + 3}" y="${staffTop - 4}" font-size="7" fill="rgba(255,255,255,0.25)" font-family="'Space Mono',monospace">${escapeHtml(el.measureNum)}</text>`;
+          html += `<text x="${x + 3}" y="${staffTop - 4}" font-size="7" fill="rgba(255,255,255,0.25)" font-family="'Space Mono',monospace">${el.measureNum}</text>`;
         } else if (el.type === 'note') {
           const i = el.noteIdx;
           const note = notes[i];
           const y = getNoteY(note.name, staffTop, lineSpacing);
 
-        let noteState = 'upcoming';
-        if (i < playerState.currentNoteIdx) noteState = 'played';
-        else if (i === playerState.currentNoteIdx) noteState = 'current';
+          let noteState = 'upcoming';
+          if (i < playerState.currentNoteIdx) noteState = 'played';
+          else if (i === playerState.currentNoteIdx) noteState = 'current';
+          const col = NOTE_COLORS[noteState];
 
-        let col = NOTE_COLORS[noteState];
-        let ghostX = x;
-        let hasGhost = false;
-
-        if (noteState === 'played') {
-          const result = scoreState.noteResults[i];
-          if (result) {
-            if (result.grade) col = GRADE_COLORS[result.grade] || col;
-            // Shift x coordinate based on timingDiffMs
-            if (result.timingDiffMs !== null && result.timingDiffMs !== undefined && result.grade !== 'miss') {
-              // 150msのズレが10pxのシフトになるように計算（上限±12px）
-              const shift = Math.max(-12, Math.min(12, result.timingDiffMs / 15));
-              if (Math.abs(shift) > 1) {
-                ghostX = x + shift;
-                hasGhost = true;
-              }
-            } else if (result.grade === 'miss' && result.timingDiffMs === 200) {
-              // 無音・未検出等の完全な miss の場合は最も遅れた状態（右ズレ上限）として表示する
-              const shift = 12;
-              ghostX = x + shift;
-              hasGhost = true;
-            }
+          if (y > staffTop + staffH + 1) {
+            for (let ly = staffTop + staffH + lineSpacing; ly <= y + 2; ly += lineSpacing)
+              html += `<line x1="${x - 8}" y1="${ly}" x2="${x + 8}" y2="${ly}" stroke="${col}" stroke-width="1"/>`;
           }
-        }
+          if (y < staffTop - 1) {
+            for (let ly = staffTop - lineSpacing; ly >= y - 2; ly -= lineSpacing)
+              html += `<line x1="${x - 8}" y1="${ly}" x2="${x + 8}" y2="${ly}" stroke="${col}" stroke-width="1"/>`;
+          }
 
-        if (y > staffTop + staffH + 1) {
-          for (let ly = staffTop + staffH + lineSpacing; ly <= y + 2; ly += lineSpacing)
-            html += `<line x1="${x - 8}" y1="${ly}" x2="${x + 8}" y2="${ly}" stroke="${col}" stroke-width="1"/>`;
-        }
-        if (y < staffTop - 1) {
-          for (let ly = staffTop - lineSpacing; ly >= y - 2; ly -= lineSpacing)
-            html += `<line x1="${x - 8}" y1="${ly}" x2="${x + 8}" y2="${ly}" stroke="${col}" stroke-width="1"/>`;
-        }
-
-        const dur = note.dur ?? 1;
-        const isWhole = dur >= 4;
-        const isHalf = !isWhole && dur >= 2;
-        const isOpen = isWhole || isHalf;
-        const hasStem = !isWhole;
-        const isDotted = dur === 0.75 || dur === 1.5 || dur === 3;
-        const flagCount = dur <= 0.25 ? 2 : dur <= 0.5 ? 1 : dur <= 0.75 ? 1 : 0;
-
-        const drawNote = (nx: number, alpha: number) => {
-          let h = '';
-          const aCol = alpha < 1 ? col.replace(')', `, ${alpha})`).replace('rgb', 'rgba') : col;
+          const dur = note.dur ?? 1;
+          const isWhole = dur >= 4;
+          const isHalf = !isWhole && dur >= 2;
+          const isOpen = isWhole || isHalf;
+          const hasStem = !isWhole;
+          const isDotted = dur === 0.75 || dur === 1.5 || dur === 3;
+          const flagCount = dur <= 0.25 ? 2 : dur <= 0.5 ? 1 : dur <= 0.75 ? 1 : 0;
 
           if (isOpen) {
-            h += `<ellipse cx="${nx}" cy="${y}" rx="5.5" ry="4" fill="none" stroke="${aCol}" stroke-width="1.5" transform="rotate(-15 ${nx} ${y})" opacity="${alpha}"/>`;
+            html += `<ellipse cx="${x}" cy="${y}" rx="5.5" ry="4" fill="none" stroke="${col}" stroke-width="1.5" transform="rotate(-15 ${x} ${y})"/>`;
           } else {
-            h += `<ellipse cx="${nx}" cy="${y}" rx="5.5" ry="4" fill="${col}" transform="rotate(-15 ${nx} ${y})" opacity="${alpha}"/>`;
+            html += `<ellipse cx="${x}" cy="${y}" rx="5.5" ry="4" fill="${col}" transform="rotate(-15 ${x} ${y})"/>`;
           }
 
           const stemDir = y > staffTop + staffH / 2 ? -1 : 1;
-          const stemX = stemDir === 1 ? nx - 5 : nx + 5;
+          const stemX = stemDir === 1 ? x - 5 : x + 5;
           const stemEndY = y + stemDir * 28;
           if (hasStem) {
-            h += `<line x1="${stemX}" y1="${y}" x2="${stemX}" y2="${stemEndY}" stroke="${col}" stroke-width="1.5" opacity="${alpha}"/>`;
+            html += `<line x1="${stemX}" y1="${y}" x2="${stemX}" y2="${stemEndY}" stroke="${col}" stroke-width="1.5"/>`;
           }
 
+          // 臨時記号 (Accidentals)
           if (note.name.includes('#')) {
-            h += `<text x="${nx - 20}" y="${y + 5}" font-size="16" fill="${col}" font-family="serif" opacity="${alpha}">♯</text>`;
+            html += `<text x="${x - 20}" y="${y + 5}" font-size="16" fill="${col}" font-family="serif">♯</text>`;
           } else if (note.name.includes('b')) {
-            h += `<text x="${nx - 20}" y="${y + 4}" font-size="16" fill="${col}" font-family="serif" opacity="${alpha}">♭</text>`;
+            html += `<text x="${x - 20}" y="${y + 4}" font-size="16" fill="${col}" font-family="serif">♭</text>`;
           }
 
           if (flagCount >= 1 && hasStem) {
             const d = -stemDir;
             const bx = stemX;
             const by = stemEndY;
-            h += `<path d="M ${bx} ${by} c 1 ${d*3}, 8 ${d*6}, 10 ${d*14} c -1 ${d*-2}, -6 ${d*-6}, -10 ${d*-8} Z" fill="${col}" opacity="${alpha}"/>`;
+            html += `<path d="M ${bx} ${by} c 1 ${d*3}, 8 ${d*6}, 10 ${d*14} c -1 ${d*-2}, -6 ${d*-6}, -10 ${d*-8} Z" fill="${col}"/>`;
             if (flagCount >= 2) {
               const by2 = by - d * 6;
-              h += `<path d="M ${bx} ${by2} c 1 ${d*3}, 8 ${d*6}, 10 ${d*14} c -1 ${d*-2}, -6 ${d*-6}, -10 ${d*-8} Z" fill="${col}" opacity="${alpha}"/>`;
+              html += `<path d="M ${bx} ${by2} c 1 ${d*3}, 8 ${d*6}, 10 ${d*14} c -1 ${d*-2}, -6 ${d*-6}, -10 ${d*-8} Z" fill="${col}"/>`;
             }
           }
           if (isDotted) {
-            h += `<circle cx="${nx + 9}" cy="${y - 2}" r="1.5" fill="${col}" opacity="${alpha}"/>`;
+            html += `<circle cx="${x + 9}" cy="${y - 2}" r="1.5" fill="${col}"/>`;
           }
-          return h;
-        };
-
-        if (hasGhost) {
-           html += drawNote(x, 0.3); // Base note at original location
-           html += drawNote(ghostX, 1.0); // Shifted note at actual location
-        } else {
-           html += drawNote(x, 1.0);
+          if (noteState !== 'upcoming')
+            html += `<text x="${x}" y="${rowH - 6}" text-anchor="middle" font-size="8" fill="${col}" font-family="'Space Mono',monospace">${escapeHtml(note.name.replace(/\d+$/, ''))}</text>`;
+          if (noteState === 'current')
+            html += `<circle cx="${x}" cy="${y}" r="11" fill="none" stroke="${col}" stroke-width="1.5" opacity="0.4"/>`;
         }
-
-        if (noteState !== 'upcoming') {
-          html += `<text x="${hasGhost ? ghostX : x}" y="${rowH - 6}" text-anchor="middle" font-size="8" fill="${col}" font-family="'Space Mono',monospace">${escapeHtml(note.name.replace(/\d+$/, ''))}</text>`;
-        }
-        if (noteState === 'current') {
-          html += `<circle cx="${x}" cy="${y}" r="11" fill="none" stroke="${col}" stroke-width="1.5" opacity="0.4"/>`;
-        }
-      }
       });
 
       rows.push(`<svg viewBox="0 0 ${W} ${rowH}" width="${W}" height="${rowH}" style="display:block;margin-bottom:4px;">${html}</svg>`);
@@ -388,57 +339,27 @@
       // 小節線
       html += `<div class="tab-bar-line" style="left:${layout.startX-2}px;height:78px;top:20px;"></div>`;
       html += `<div class="tab-bar-line" style="left:${layout.endX}px;height:78px;top:20px;"></div>`;
-
-      html += `<span style="position:absolute;top:5px;left:${layout.startX}px;font-size:7px;color:rgba(255,255,255,0.25);">${escapeHtml(layout.rowStartMeasure+1)}</span>`;
+      html += `<span style="position:absolute;top:5px;left:${layout.startX}px;font-size:7px;color:rgba(255,255,255,0.25);">${layout.rowStartMeasure+1}</span>`;
 
       layout.elements.forEach((el, j) => {
         const x = layout.elPositions[j];
         if (el.type === 'bar') {
           html += `<div class="tab-bar-line" style="left:${x}px;height:78px;top:20px;"></div>`;
-          html += `<span style="position:absolute;top:5px;left:${x+3}px;font-size:7px;color:rgba(255,255,255,0.25);">${escapeHtml(el.measureNum)}</span>`;
+          html += `<span style="position:absolute;top:5px;left:${x+3}px;font-size:7px;color:rgba(255,255,255,0.25);">${el.measureNum}</span>`;
         } else if (el.type === 'note') {
           const i = el.noteIdx;
           const note = notes[i];
           const sidx = STRINGS.indexOf(note.string);
           if (sidx === -1) return;
 
-        const y = 20 + sidx * 20;
-        let state = i < playerState.currentNoteIdx ? 'tc-played' : i === playerState.currentNoteIdx ? 'tc-current' : '';
-        let ghostX = x;
-        let hasGhost = false;
+          const y = 20 + sidx * 20;
+          const state = i < playerState.currentNoteIdx ? 'tc-played' : i === playerState.currentNoteIdx ? 'tc-current' : '';
+          const beatNum = (note.beat % timeSigNum) + 1;
+          const beatCol = i === playerState.currentNoteIdx ? 'var(--accent)' : 'var(--muted)';
 
-        if (state === 'tc-played') {
-          const result = scoreState.noteResults[i];
-          if (result) {
-            if (result.grade) state = `tc-played-${result.grade}`;
-            if (result.timingDiffMs !== null && result.timingDiffMs !== undefined && result.grade !== 'miss') {
-              // 150msのズレが10pxのシフトになるように計算（上限±12px）
-              const shift = Math.max(-12, Math.min(12, result.timingDiffMs / 15));
-              if (Math.abs(shift) > 1) {
-                ghostX = x + shift;
-                hasGhost = true;
-              }
-            } else if (result.grade === 'miss' && result.timingDiffMs === 200) {
-              // 無音・未検出等の完全な miss の場合は最も遅れた状態（右ズレ上限）として表示する
-              const shift = 12;
-              ghostX = x + shift;
-              hasGhost = true;
-            }
-          }
+          html += `<div class="tab-note-val ${state}" style="left:${x-8}px;top:${y+1}px;width:16px;">${escapeHtml(note.fret)}</div>`;
+          html += `<div style="position:absolute;top:104px;left:${x-10}px;width:20px;text-align:center;font-size:8px;color:${beatCol};font-family:'Space Mono',monospace;">${escapeHtml(beatNum)}</div>`;
         }
-
-        const beatNum = (note.beat % timeSigNum) + 1;
-        const beatCol = i === playerState.currentNoteIdx ? 'var(--accent)' : 'var(--muted)';
-
-        if (hasGhost) {
-           html += `<div class="tab-note-val ${state}" style="left:${x-8}px;top:${y+1}px;width:16px;opacity:0.3;">${escapeHtml(note.fret)}</div>`;
-           html += `<div class="tab-note-val ${state}" style="left:${ghostX-8}px;top:${y+1}px;width:16px;">${escapeHtml(note.fret)}</div>`;
-        } else {
-           html += `<div class="tab-note-val ${state}" style="left:${x-8}px;top:${y+1}px;width:16px;">${escapeHtml(note.fret)}</div>`;
-        }
-
-        html += `<div style="position:absolute;top:104px;left:${(hasGhost ? ghostX : x)-10}px;width:20px;text-align:center;font-size:8px;color:${beatCol};font-family:'Space Mono',monospace;">${escapeHtml(beatNum)}</div>`;
-      }
       });
 
       html += `</div>`;
@@ -684,10 +605,6 @@
   z-index: 2;
 }
 :global(.tab-note-val.tc-played) { color: rgba(58,245,160,0.7); }
-:global(.tab-note-val.tc-played-perfect) { color: var(--accent2); }
-:global(.tab-note-val.tc-played-good) { color: var(--accent); }
-:global(.tab-note-val.tc-played-ok) { color: var(--warn); }
-:global(.tab-note-val.tc-played-miss) { color: var(--danger); }
 :global(.tab-note-val.tc-current) { 
   color: var(--accent); font-weight: 700; 
   text-shadow: 0 0 8px var(--accent);

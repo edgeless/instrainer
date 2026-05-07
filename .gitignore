@@ -28,7 +28,3 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
-
-# Logs and package managers
-/*.log
-bun.lock
