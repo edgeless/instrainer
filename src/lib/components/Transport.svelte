@@ -271,8 +271,10 @@
       // これにより、弾き始めが sliding 判定された場合でも正確なタイミングを取得できる。
       const firstSample = filteredHistory.find(h => h.freq > 0);
       if (firstSample) {
-        // YINアルゴリズムの物理的遅延（波形約3周期分）を補正
-        // 実測に基づき、低域での検出ラグをより正確に相殺するため係数を 3.0 に調整
+        // YINアルゴリズムの物理的遅延を補正。
+        // YINは波形の周期性を利用するため、最低でも数周期分のサンプルが溜まるまでピッチを確定できません。
+        // 実測（低域 E2/41Hz〜高域）に基づき、約3周期分（3000/freq ms）のラグを差し引くことで
+        // 実際の発音開始時刻（アタック）に近いタイミングを算出します。
         const yinLatencyMs = 3000 / firstSample.freq;
         timingDiffMs = (firstSample.time - audioState.latencyCompensationMs - yinLatencyMs) - expectedNoteTimeMs;
         timingGrade = getTimingGrade(Math.abs(timingDiffMs));
@@ -423,8 +425,8 @@
         const beatOffset = playerState.isFreeMode ? note.beat + loopOffset : note.beat + loopOffset + countIn;
         const expectedNoteTimeMs = playerState.playbackStartTimeMs + (beatOffset * (60 / playerState.song.bpm) * 1000);
 
-        // YINアルゴリズムの物理的遅延（波形約3周期分）を補正
-        // 実測に基づき、低域での検出ラグをより正確に相殺するため係数を 3.0 に調整
+        // YINアルゴリズムの物理的遅延（波形約3周期分）を補正。
+        // 発音開始の瞬間に近いタイミングを捉えるため、周波数に比例した遅延（3周期分）を差し引きます。
         const yinLatencyMs = 3000 / firstFreq;
         timingDiffMs = (firstSampleTime - audioState.latencyCompensationMs - yinLatencyMs) - expectedNoteTimeMs;
         timingGrade = getTimingGrade(Math.abs(timingDiffMs));

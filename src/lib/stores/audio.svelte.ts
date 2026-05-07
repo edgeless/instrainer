@@ -166,7 +166,12 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
     audioState.micGranted = true;
     audioState.micError = null;
 
-    // await updateDevices(); // E2Eテストでのハングを避けるため一時的に無効化
+    // E2Eテスト環境（Playwright/Chromium）では enumerateDevices がハングすることがあるため、
+    // E2Eモード以外の場合のみデバイス一覧を更新します。
+    const isE2E = typeof window !== 'undefined' && (window as any).__E2E__;
+    if (!isE2E) {
+      await updateDevices();
+    }
     const track = stream.getAudioTracks()[0];
     if (track) {
       const settings = track.getSettings();

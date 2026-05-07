@@ -20,8 +20,8 @@
   let totalTimingScore = $derived(
     scoreState.noteResults.reduce((sum, r) => {
       if (!r || r.timingGrade === 'miss' || r.timingDiffMs === null || r.timingDiffMs === undefined) return sum;
-      // ブラウザのジッター（約16-30ms）を許容し、安定した評価を提供するため
-      // 100msを減点基準のベース（0点）に変更
+      // プロフェッショナル基準として精度向上を促すため、100msを減点基準のベース（0点）に変更。
+      // これにより、ブラウザのジッター（約16-30ms）は許容しつつ、リズムの正確さを厳格に評価します。
       return sum + Math.max(0, 100 - Math.abs(r.timingDiffMs)); 
     }, 0)
   );
