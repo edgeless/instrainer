@@ -2,13 +2,41 @@
   import { scoreState } from '$lib/stores/score.svelte';
   import { playerState } from '$lib/stores/player.svelte';
 
-  let graded = $derived(scoreState.noteResults.filter(r => r && r.grade));
-  let scored = $derived(graded.filter(r => r?.grade !== 'miss'));
-  let acc = $derived(graded.length > 0 ? Math.round((scored.length / graded.length) * 100) : null);
-  let withCents = $derived(graded.filter(r => r?.avgCents !== null));
-  let avgDev = $derived(withCents.length > 0 ? Math.round(withCents.reduce((s, r) => s + Math.abs(r!.avgCents as number), 0) / withCents.length) : null);
-  let withTiming = $derived(graded.filter(r => r?.timingDiffMs !== null && r?.timingDiffMs !== undefined));
-  let avgTimingDev = $derived(withTiming.length > 0 ? Math.round(withTiming.reduce((s, r) => s + Math.abs(r!.timingDiffMs as number), 0) / withTiming.length) : null);
+  let stats = $derived.by(() => {
+    let gradedCount = 0;
+    let scoredCount = 0;
+    let centsSum = 0;
+    let centsCount = 0;
+    let timingSum = 0;
+    let timingCount = 0;
+
+    for (const r of scoreState.noteResults) {
+      if (r && r.grade) {
+        gradedCount++;
+        if (r.grade !== 'miss') {
+          scoredCount++;
+        }
+        if (r.avgCents !== null) {
+          centsSum += Math.abs(r.avgCents);
+          centsCount++;
+        }
+        if (r.timingDiffMs !== null && r.timingDiffMs !== undefined) {
+          timingSum += Math.abs(r.timingDiffMs);
+          timingCount++;
+        }
+      }
+    }
+
+    return {
+      acc: gradedCount > 0 ? Math.round((scoredCount / gradedCount) * 100) : null,
+      avgDev: centsCount > 0 ? Math.round(centsSum / centsCount) : null,
+      avgTimingDev: timingCount > 0 ? Math.round(timingSum / timingCount) : null
+    };
+  });
+
+  let acc = $derived(stats.acc);
+  let avgDev = $derived(stats.avgDev);
+  let avgTimingDev = $derived(stats.avgTimingDev);
 </script>
 
 <div class="score-panel">

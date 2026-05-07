@@ -1,0 +1,16 @@
+{
+  "name": "Evaluation Song",
+  "bpm": 60,
+  "key": "C",
+  "timeSignature": [4, 4],
+  "notes": [
+    {"name":"C2", "midi":36, "string":"A", "fret":3, "beat":0, "dur":4},
+    {"name":"D2", "midi":38, "string":"A", "fret":5, "beat":8, "dur":1},
+    {"name":"E2", "midi":40, "string":"A", "fret":7, "beat":9, "dur":1},
+    {"name":"F2", "midi":41, "string":"D", "fret":3, "beat":10, "dur":1},
+    {"name":"G2", "midi":43, "string":"D", "fret":5, "beat":11, "dur":1},
+    {"name":"A2", "midi":45, "string":"D", "fret":7, "beat":12, "dur":1},
+    {"name":"B2", "midi":47, "string":"G", "fret":4, "beat":13, "dur":1},
+    {"name":"C3", "midi":48, "string":"G", "fret":5, "beat":14, "dur":2}
+  ]
+}
