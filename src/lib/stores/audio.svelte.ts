@@ -168,7 +168,6 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
 
     // E2Eテスト環境（Playwright/Chromium）では enumerateDevices がハングすることがあるため、
     // E2Eモード以外の場合のみデバイス一覧を更新します。
-    const isE2E = typeof window !== 'undefined' && (window as any).__E2E__;
     if (!isE2E) {
       await updateDevices();
     }
