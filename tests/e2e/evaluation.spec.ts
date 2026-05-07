@@ -119,9 +119,7 @@ test.describe('E2E Evaluation Suite', () => {
     const res = await runEvalTest('c_major_perfect.wav');
     console.log(`[UI RESULT] perfect: Pitch=${res.pitchAcc}%, Timing=${res.timingAcc}%`);
     expect(res.pitchAcc).toBeGreaterThan(80);
-    // Note: timingAcc might be lower (~65%) due to strict decay in UI calculation.
-    // This will be addressed in the next architectural update.
-    expect(res.timingAcc).toBeGreaterThan(60); 
+    expect(res.timingAcc).toBeGreaterThan(80); 
   });
 
   test('bad pitch is correctly penalized', async () => {
