@@ -22,7 +22,7 @@ export function detectPitch(analyserNode: AnalyserNode, pitchBuf: Float32Array |
     rms += buf[i] * buf[i];
   }
   rms = Math.sqrt(rms / n);
-  if (rms < 0.015) {
+  if (rms < 0.1) {
     return -1;
   }
 

@@ -2,8 +2,18 @@
   import { onDestroy } from 'svelte';
   import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds, getDisplayBeat, getCountInBeats } from '$lib/stores/player.svelte';
   import { scoreState, resetScore } from '$lib/stores/score.svelte';
-  import { audioState, playClick, playDemoNote, stopDemoNotes, setMasterVolume } from '$lib/stores/audio.svelte';
+  import { audioState, playClick, playDemoNote, stopDemoNotes, setMasterVolume, getAudioTimeMs } from '$lib/stores/audio.svelte';
   import { midiToFreq, freqToCents, freqToMidi, getGrade, getTimingGrade, getCombinedGrade } from '$lib/utils/pitch';
+
+  let { 
+    startRecord: startRecordProp = $bindable(), 
+    stopRecord: stopRecordProp = $bindable() 
+  } = $props();
+
+  $effect(() => {
+    startRecordProp = startRecord;
+    stopRecordProp = stopRecord;
+  });
 
   let beatInterval: any = null;
 
@@ -157,22 +167,25 @@
         }
       }
 
-      playerState.currentBeat += 0.25;
-
-      // Calculate absolute time for next beat to prevent timing drift
       if (playerState.playbackStartTimeMs !== null) {
-        let expectedNextBeatTimeMs;
+        const now = getAudioTimeMs();
+        const elapsedMs = now - playerState.playbackStartTimeMs;
+        const countIn = getCountInBeats();
+        
+        // Update current beat from actual elapsed time
         if (playerState.isFreeMode) {
-          expectedNextBeatTimeMs = playerState.playbackStartTimeMs + (playerState.currentBeat * secPerBeat * 1000);
+          playerState.currentBeat = (elapsedMs / 1000) / secPerBeat;
         } else {
-          const countIn = getCountInBeats();
-          expectedNextBeatTimeMs = playerState.playbackStartTimeMs + ((playerState.currentBeat + countIn) * secPerBeat * 1000);
+          playerState.currentBeat = (elapsedMs / 1000) / secPerBeat - countIn;
         }
 
-        const now = performance.now();
-        const delayMs = Math.max(0, expectedNextBeatTimeMs - now);
+        // Schedule next tick at next 0.25 beat boundary
+        const nextBeat = Math.floor(playerState.currentBeat * 4 + 1) / 4;
+        const expectedNextTimeMs = playerState.playbackStartTimeMs + ((nextBeat + (playerState.isFreeMode ? 0 : countIn)) * secPerBeat * 1000);
+        const delayMs = Math.max(1, expectedNextTimeMs - now);
         beatInterval = setTimeout(tick, delayMs);
       } else {
+        playerState.currentBeat += 0.25;
         beatInterval = setTimeout(tick, secPerBeat * 1000 * 0.25);
       }
     }
@@ -332,99 +345,99 @@
   }
 
   function runPostAnalysis() {
-    for (let i = 0; i < scoreState.recordedSamples.length; i++) {
-      const rs = scoreState.recordedSamples[i];
-      const note = playerState.song.notes[rs.noteIdx];
-      if (!note) continue;
-      const targetF = midiToFreq(note.midi);
-      const samples = rs.samples as { freq: number, isSliding: boolean, time: number }[];
+    if (playerState.playbackStartTimeMs === null) return;
+    
+    const notes = playerState.song.notes;
+    const bpm = playerState.song.bpm;
+    const secPerBeat = 60 / bpm;
+    const countIn = getCountInBeats();
+    const originalBeats = getOriginalBeats();
+    const totalLoops = playerState.repeatCount || 1;
+    const baseTime = playerState.playbackStartTimeMs;
 
-      const prevNote = rs.noteIdx > 0 ? playerState.song.notes[rs.noteIdx - 1] : null;
-      const prevTargetF = prevNote ? midiToFreq(prevNote.midi) : null;
+    // Reset results array
+    scoreState.noteResults = new Array(notes.length * totalLoops).fill(null);
 
-      let expectedNoteTimeMs: number | null = null;
-      if (playerState.playbackStartTimeMs !== null) {
-        const originalBeats = getOriginalBeats();
-        const loopOffset = (rs.loopIdx - 1) * originalBeats;
-        const countIn = getCountInBeats();
-        const beatOffset = playerState.isFreeMode ? note.beat + loopOffset : note.beat + loopOffset + countIn;
-        expectedNoteTimeMs = playerState.playbackStartTimeMs + (beatOffset * (60 / playerState.song.bpm) * 1000);
-      }
+    for (let loopIdx = 1; loopIdx <= totalLoops; loopIdx++) {
+      const loopOffsetBeats = (loopIdx - 1) * originalBeats;
 
-      let filteredSamples = [];
-      let foundNoteStart = false;
+      for (let noteIdx = 0; noteIdx < notes.length; noteIdx++) {
+        const note = notes[noteIdx];
+        const resultIdx = (loopIdx - 1) * notes.length + noteIdx;
 
-      for (const h of samples) {
-        if (expectedNoteTimeMs !== null && !foundNoteStart) {
-          if (prevTargetF) {
-            const isSameNote = Math.abs(targetF - prevTargetF) < 1;
-            if (!isSameNote) {
+        // Calculate expected time window for this note
+        const beatStart = note.beat + loopOffsetBeats + countIn;
+        const expectedStartMs = baseTime + (beatStart * secPerBeat * 1000);
+        const expectedEndMs = expectedStartMs + (note.dur * secPerBeat * 1000);
+
+        // Filter samples that fall into this note's time window (+/- small margin for timing detection)
+        // Allow samples slightly before/after to catch the onset/offset
+        const samples = scoreState.recordedSamples.filter(s => 
+          s.time >= expectedStartMs - 200 && s.time <= expectedEndMs + 200
+        );
+
+        if (samples.length === 0) {
+          scoreState.noteResults[resultIdx] = { 
+            grade: 'miss', combinedGrade: 'miss', pitchGrade: 'miss', timingGrade: 'miss', 
+            avgCents: null, timingDiffMs: 200 
+          };
+          continue;
+        }
+
+        const targetF = midiToFreq(note.midi);
+        const prevNote = noteIdx > 0 ? notes[noteIdx - 1] : null;
+        const prevTargetF = prevNote ? midiToFreq(prevNote.midi) : null;
+
+        // Fine-tune onset detection (foundNoteStart logic)
+        let foundNoteStart = false;
+        let filteredSamples = [];
+
+        for (const h of samples) {
+          if (!foundNoteStart) {
+            if (prevTargetF && Math.abs(targetF - prevTargetF) > 1) {
               const cTarget = Math.abs(freqToCents(h.freq, targetF) ?? 9999);
               const cPrev = Math.abs(freqToCents(h.freq, prevTargetF) ?? 9999);
-              if (cPrev < cTarget && cPrev <= 200) {
-                continue;
-              } else {
-                foundNoteStart = true;
-              }
+              if (cPrev < cTarget && cPrev <= 200) continue; // Still previous note
             } else {
-              if (h.time < expectedNoteTimeMs - 150) {
-                continue;
-              } else {
-                foundNoteStart = true;
-              }
+              if (h.time < expectedStartMs - 150) continue; // Too early
             }
-          } else {
-            if (h.time < expectedNoteTimeMs - 500) {
-               continue;
-            } else {
-               foundNoteStart = true;
-            }
+            foundNoteStart = true;
           }
-        }
-        
-        if (foundNoteStart || expectedNoteTimeMs === null) {
           filteredSamples.push(h);
         }
-      }
-      if (filteredSamples.length === 0) filteredSamples = samples;
 
-      let validSamples = filteredSamples.filter(h => h.freq > 0 && !h.isSliding);
-      const totalCount = filteredSamples.filter(h => h.freq > 0).length;
+        if (filteredSamples.length === 0) filteredSamples = samples;
 
-      if (validSamples.length === 0 && totalCount > 0) {
-        validSamples = filteredSamples.filter(h => h.freq > 0);
-      }
+        let validSamples = filteredSamples.filter(h => h.freq > 0 && !h.isSliding);
+        if (validSamples.length === 0) validSamples = filteredSamples.filter(h => h.freq > 0);
 
-      const centsArr = validSamples.map(h => freqToCents(h.freq, targetF) as number);
+        const centsArr = validSamples.map(h => freqToCents(h.freq, targetF) as number);
+        if (centsArr.length === 0) {
+          scoreState.noteResults[resultIdx] = { 
+            grade: 'miss', combinedGrade: 'miss', pitchGrade: 'miss', timingGrade: 'miss', 
+            avgCents: null, timingDiffMs: 200 
+          };
+          continue;
+        }
 
-      if (centsArr.length === 0) {
-        scoreState.noteResults[rs.noteIdx] = { grade: 'miss', combinedGrade: 'miss', pitchGrade: 'miss', timingGrade: 'miss', avgCents: null, timingDiffMs: 200 };
-        continue;
-      }
-      const s = [...centsArr].sort((a, b) => a - b);
-      const trim = Math.floor(s.length * 0.25);
-      const trimmed = s.slice(trim, s.length - trim);
-      const mean = trimmed.length ? trimmed.reduce((a, b) => a + b, 0) / trimmed.length : s[Math.floor(s.length / 2)];
-      const pitchGrade = getGrade(Math.abs(mean), playerState.tolerance);
+        // Pitch Calculation (Trimmed Mean)
+        const s = [...centsArr].sort((a, b) => a - b);
+        const trim = Math.floor(s.length * 0.25);
+        const trimmed = s.slice(trim, s.length - trim);
+        const mean = trimmed.length ? trimmed.reduce((a, b) => a + b, 0) / trimmed.length : s[Math.floor(s.length / 2)];
+        const pitchGrade = getGrade(Math.abs(mean), playerState.tolerance);
 
-      let timingGrade: 'miss' | 'ok' | 'good' | 'perfect' = 'miss';
-      let timingDiffMs: number | null = null;
-
-      if (playerState.playbackStartTimeMs !== null && validSamples.length > 0) {
+        // Timing Calculation
         const firstSampleTime = validSamples[0].time;
-        // In post analysis, calculate expected time
-        const originalBeats = getOriginalBeats();
-        const loopOffset = (rs.loopIdx - 1) * originalBeats;
-        const countIn = getCountInBeats();
-        const beatOffset = playerState.isFreeMode ? note.beat + loopOffset : note.beat + loopOffset + countIn;
-        const expectedNoteTimeMs = playerState.playbackStartTimeMs + (beatOffset * (60 / playerState.song.bpm) * 1000);
-        timingDiffMs = (firstSampleTime - audioState.latencyCompensationMs) - expectedNoteTimeMs;
-        timingGrade = getTimingGrade(Math.abs(timingDiffMs));
+        const timingDiffMs = (firstSampleTime - audioState.latencyCompensationMs) - expectedStartMs;
+        const timingGrade = getTimingGrade(Math.abs(timingDiffMs));
+
+        const combinedGrade = getCombinedGrade(pitchGrade, timingGrade);
+        scoreState.noteResults[resultIdx] = { 
+          grade: combinedGrade, combinedGrade, pitchGrade, timingGrade, 
+          avgCents: mean, timingDiffMs, rawCents: centsArr 
+        };
       }
-
-      const combinedGrade = getCombinedGrade(pitchGrade, timingGrade);
-
-      scoreState.noteResults[rs.noteIdx] = { grade: combinedGrade, combinedGrade, pitchGrade, timingGrade, avgCents: mean, timingDiffMs, rawCents: centsArr };
     }
   }
 
@@ -463,10 +476,10 @@
     // where it strictly anchors the expected timing for grading.
     const secPerBeat = 60 / playerState.song.bpm;
     if (playerState.isFreeMode) {
-      playerState.playbackStartTimeMs = performance.now() - (playerState.currentBeat * secPerBeat * 1000);
+      playerState.playbackStartTimeMs = getAudioTimeMs() - (playerState.currentBeat * secPerBeat * 1000);
     } else {
       const countIn = getCountInBeats();
-      playerState.playbackStartTimeMs = performance.now() - ((playerState.currentBeat + countIn) * secPerBeat * 1000);
+      playerState.playbackStartTimeMs = getAudioTimeMs() - ((playerState.currentBeat + countIn) * secPerBeat * 1000);
     }
 
     if (audioState.recordedAudioUrl) {
@@ -628,11 +641,11 @@
 
     if (playerState.isFreeMode) {
       playerState.currentBeat = 0; // フリーモードは即時開始
-      playerState.playbackStartTimeMs = performance.now();
+      playerState.playbackStartTimeMs = getAudioTimeMs();
     } else {
       const countIn = getCountInBeats();
       playerState.currentBeat = -countIn;
-      playerState.playbackStartTimeMs = performance.now();
+      playerState.playbackStartTimeMs = getAudioTimeMs();
     }
     scheduleBeat();
   }
@@ -683,10 +696,10 @@
     if (playerState.isPlaying || playerState.isRecording) {
       const secPerBeat = 60 / playerState.song.bpm;
       if (playerState.isFreeMode) {
-        playerState.playbackStartTimeMs = performance.now() - (targetBeat * secPerBeat * 1000);
+        playerState.playbackStartTimeMs = getAudioTimeMs() - (targetBeat * secPerBeat * 1000);
       } else {
         const countIn = getCountInBeats();
-        playerState.playbackStartTimeMs = performance.now() - ((targetBeat + countIn) * secPerBeat * 1000);
+        playerState.playbackStartTimeMs = getAudioTimeMs() - ((targetBeat + countIn) * secPerBeat * 1000);
       }
     }
 

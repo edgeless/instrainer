@@ -1,107 +1,53 @@
 import wave
 import struct
 import math
+import argparse
+import os
 
 def midi_to_freq(midi):
     return 440 * math.pow(2, (midi - 69) / 12)
 
-def generate_wav(filename, notes, bpm, sample_rate=44100):
+def generate_wavs(bpm=60, sample_rate=44100):
     sec_per_beat = 60.0 / bpm
+    duration = sec_per_beat * 0.5 # 50% duty cycle
+    count_in_beats = 4
+    
+    total_beats = 16
+    total_duration = (total_beats + count_in_beats) * sec_per_beat
+    
+    # C Major Scale: C3, D3, E3, F3, G3, A3, B3, C4, B3, A3, G3, F3, E3, D3, C3 (15 notes)
+    notes = [36, 38, 40, 41, 43, 45, 47, 48, 47, 45, 43, 41, 40, 38, 36]
+    
+    output_dir = os.path.dirname(__file__)
+    
+    def write_wav(filename, pitch_offset=0, timing_offset=0):
+        filepath = os.path.join(output_dir, filename)
+        with wave.open(filepath, 'w') as f:
+            f.setnchannels(1)
+            f.setsampwidth(2)
+            f.setframerate(sample_rate)
+            
+            num_samples = int(total_duration * sample_rate)
+            for i in range(num_samples):
+                t = i / sample_rate
+                val = 0
+                
+                for idx, midi in enumerate(notes):
+                    note_start = (count_in_beats + idx) * sec_per_beat + timing_offset
+                    if note_start <= t < note_start + duration:
+                        freq = midi_to_freq(midi + pitch_offset)
+                        val = int(32767 * 0.5 * math.sin(2 * math.pi * freq * t))
+                        break
+                
+                f.writeframesraw(struct.pack('<h', val))
+        print(f"DONE {filename}")
 
-    with wave.open(filename, 'w') as wav_file:
-        wav_file.setnchannels(1)
-        wav_file.setsampwidth(2) # 16-bit
-        wav_file.setframerate(sample_rate)
+    print(f"Generating {bpm} BPM test WAV files at {sample_rate}Hz...")
+    write_wav("c_major_perfect.wav", 0, 0)
 
-        if not notes:
-            return
-        last_note = notes[-1]
-        total_beats = last_note['beat'] + last_note['dur']
-
-        count_in_beats = 4
-        # 250ms latency padding to match app's default latencyCompensationMs (250ms)
-        latency_padding_samples = int(0.25 * sample_rate)
-        total_samples_with_count_in = int(((count_in_beats + total_beats) * sec_per_beat) * sample_rate)
-        total_samples = latency_padding_samples + total_samples_with_count_in
-
-        buffer = [0] * total_samples
-
-        for note in notes:
-            beat = note['beat']
-            dur = note['dur']
-            freq = note['freq']
-
-            start_beat = count_in_beats + beat
-            end_beat = start_beat + dur
-
-            start_sample = latency_padding_samples + int((start_beat * sec_per_beat) * sample_rate)
-            end_sample = latency_padding_samples + int((end_beat * sec_per_beat) * sample_rate)
-
-            for i in range(start_sample, min(end_sample, total_samples)):
-                t = (i - start_sample) / sample_rate
-                sample = math.sin(2.0 * math.pi * freq * t)
-                envelope = 1.0
-                if (i - start_sample) < 0.05 * sample_rate:
-                    envelope = (i - start_sample) / (0.05 * sample_rate)
-                elif (end_sample - i) < 0.05 * sample_rate:
-                    envelope = (end_sample - i) / (0.05 * sample_rate)
-
-                buffer[i] = int(sample * envelope * 32767.0)
-
-        for s in buffer:
-            clamped_s = max(-32768, min(32767, s))
-            wav_file.writeframes(struct.pack('h', clamped_s))
-
-bpm = 80
-
-# Notes from c_major.json - using MIDI values for correct frequencies
-# AGENTS.md Rule 6: bass written pitch, so MIDI 36 = C2 (65.41 Hz)
-c_major_midi = [
-    {"beat": 0,  "dur": 1, "midi": 36},  # C2
-    {"beat": 1,  "dur": 1, "midi": 38},  # D2
-    {"beat": 2,  "dur": 1, "midi": 40},  # E2
-    {"beat": 3,  "dur": 1, "midi": 41},  # F2
-    {"beat": 4,  "dur": 1, "midi": 43},  # G2
-    {"beat": 5,  "dur": 1, "midi": 45},  # A2
-    {"beat": 6,  "dur": 1, "midi": 47},  # B2
-    {"beat": 7,  "dur": 1, "midi": 48},  # C3
-    {"beat": 8,  "dur": 1, "midi": 47},  # B2
-    {"beat": 9,  "dur": 1, "midi": 45},  # A2
-    {"beat": 10, "dur": 1, "midi": 43},  # G2
-    {"beat": 11, "dur": 1, "midi": 41},  # F2
-    {"beat": 12, "dur": 1, "midi": 40},  # E2
-    {"beat": 13, "dur": 1, "midi": 38},  # D2
-    {"beat": 14, "dur": 2, "midi": 36},  # C2
-]
-
-# Convert MIDI to freq
-c_major_notes_perfect = [
-    {"beat": n["beat"], "dur": n["dur"], "freq": midi_to_freq(n["midi"])}
-    for n in c_major_midi
-]
-
-print("Generating test WAV files with correct MIDI frequencies...")
-for n in c_major_notes_perfect:
-    print(f"  beat={n['beat']} dur={n['dur']} freq={n['freq']:.2f} Hz")
-
-generate_wav("c_major_perfect.wav", c_major_notes_perfect, bpm)
-print("✔ c_major_perfect.wav")
-
-# Good pitch: ~15 cents sharp
-c_major_notes_good_pitch = [
-    {"beat": n["beat"], "dur": n["dur"], "freq": n["freq"] * math.pow(2, 15/1200)}
-    for n in c_major_notes_perfect
-]
-generate_wav("c_major_good_pitch.wav", c_major_notes_good_pitch, bpm)
-print("✔ c_major_good_pitch.wav")
-
-# Good timing: ~80ms late (0.1067 beats at 80 BPM)
-late_beats = 0.08 / (60.0 / bpm)  # 80ms in beats
-c_major_notes_timing_good = [
-    {"beat": n["beat"] + late_beats, "dur": n["dur"], "freq": n["freq"]}
-    for n in c_major_notes_perfect
-]
-generate_wav("c_major_good_timing.wav", c_major_notes_timing_good, bpm)
-print("✔ c_major_good_timing.wav")
-
-print("\nDone! WAV structure: [250ms padding] [3s count-in] [12s notes]")
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--bpm", type=int, default=60)
+    parser.add_argument("--sample-rate", type=int, default=44100)
+    args = parser.parse_args()
+    generate_wavs(bpm=args.bpm, sample_rate=args.sample_rate)

@@ -21,7 +21,9 @@ const config = {
 			mode: 'auto',
 			directives: {
 				'default-src': ['self'],
-				'script-src': ['self', 'wasm-unsafe-eval'],
+				'script-src': process.env.NODE_ENV === 'production' 
+					? ['self', 'wasm-unsafe-eval'] 
+					: ['self', 'wasm-unsafe-eval', 'unsafe-eval'],
 				'style-src': ['self', 'unsafe-inline', 'https://fonts.googleapis.com'],
 				'font-src': ['self', 'https://fonts.gstatic.com'],
 				'img-src': ['self', 'data:'],

@@ -6,7 +6,7 @@
   import type Transport from './Transport.svelte';
   import AIGeneratorModal from './AIGeneratorModal.svelte';
 
-  let { transportRef } = $props<{ transportRef: ReturnType<typeof Transport> | undefined }>();
+  let { } = $props();
 
   function onSongChange(e: Event) {
     const select = e.target as HTMLSelectElement;
@@ -71,8 +71,8 @@
     };
   });
 
-  let audioInputs = $derived(audioState.devices.filter(d => d.kind === 'audioinput'));
-  let audioOutputs = $derived(audioState.devices.filter(d => d.kind === 'audiooutput'));
+  let audioInputs = $derived(audioState.inputDevices || []);
+  let audioOutputs = $derived(audioState.outputDevices || []);
 
   let isAIModalOpen = $state(false);
 

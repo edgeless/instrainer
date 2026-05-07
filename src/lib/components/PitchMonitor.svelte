@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { playerState } from '$lib/stores/player.svelte';
-  import { audioState } from '$lib/stores/audio.svelte';
+  import { audioState, getAudioTimeMs } from '$lib/stores/audio.svelte';
   import { scoreState } from '$lib/stores/score.svelte';
   import { midiToFreq, freqToCents, detectPitch, freqToMidi, midiToNoteName, getGrade } from '$lib/utils/pitch';
 
@@ -50,7 +50,13 @@
           }
         }
         scoreState.isSliding = sliding;
-        scoreState.currentCentsHistory.push({ freq, isSliding: sliding, time: performance.now() });
+        
+        // 録音中ならフラットな履歴に保存
+        if (playerState.isRecording && freq > 0) {
+          scoreState.recordedSamples.push({ freq, time: getAudioTimeMs(), isSliding: sliding });
+        }
+
+        scoreState.currentCentsHistory.push({ freq, isSliding: sliding, time: getAudioTimeMs() });
 
         // フリーモード時のリアルタイム統計更新
         if (playerState.isFreeMode) {
