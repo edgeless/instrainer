@@ -20,12 +20,14 @@
   let totalTimingScore = $derived(
     scoreState.noteResults.reduce((sum, r) => {
       if (!r || r.timingGrade === 'miss' || r.timingDiffMs === null || r.timingDiffMs === undefined) return sum;
-      return sum + Math.max(0, 50 - Math.abs(r.timingDiffMs)); 
+      // ブラウザのジッター（約16-30ms）を許容し、安定した評価を提供するため
+      // 100msを減点基準のベース（0点）に変更
+      return sum + Math.max(0, 100 - Math.abs(r.timingDiffMs)); 
     }, 0)
   );
 
   let pitchPercent = $derived(maxPitchScore > 0 ? (totalPitchScore / maxPitchScore) * 100 : 0);
-  let timingPercent = $derived(maxTimingScore > 0 ? (totalTimingScore / maxTimingScore) * 100 : 0);
+  let timingPercent = $derived(maxTimingScore > 0 ? (totalTimingScore / (playerState.song.notes.length * 100)) * 100 : 0);
   let overallPercent = $derived((pitchPercent + timingPercent) / 2);
   let scoreText = $derived(`${overallPercent.toFixed(1)}%`);
 

@@ -271,7 +271,10 @@
       // これにより、弾き始めが sliding 判定された場合でも正確なタイミングを取得できる。
       const firstSample = filteredHistory.find(h => h.freq > 0);
       if (firstSample) {
-        timingDiffMs = (firstSample.time - audioState.latencyCompensationMs) - expectedNoteTimeMs;
+        // YINアルゴリズムの物理的遅延（波形約3周期分）を補正
+        // 実測に基づき、低域での検出ラグをより正確に相殺するため係数を 3.0 に調整
+        const yinLatencyMs = 3000 / firstSample.freq;
+        timingDiffMs = (firstSample.time - audioState.latencyCompensationMs - yinLatencyMs) - expectedNoteTimeMs;
         timingGrade = getTimingGrade(Math.abs(timingDiffMs));
       }
     }
@@ -412,13 +415,18 @@
 
       if (playerState.playbackStartTimeMs !== null && validSamples.length > 0) {
         const firstSampleTime = validSamples[0].time;
+        const firstFreq = validSamples[0].freq;
         // In post analysis, calculate expected time
         const originalBeats = getOriginalBeats();
         const loopOffset = (rs.loopIdx - 1) * originalBeats;
         const countIn = getCountInBeats();
         const beatOffset = playerState.isFreeMode ? note.beat + loopOffset : note.beat + loopOffset + countIn;
         const expectedNoteTimeMs = playerState.playbackStartTimeMs + (beatOffset * (60 / playerState.song.bpm) * 1000);
-        timingDiffMs = (firstSampleTime - audioState.latencyCompensationMs) - expectedNoteTimeMs;
+
+        // YINアルゴリズムの物理的遅延（波形約3周期分）を補正
+        // 実測に基づき、低域での検出ラグをより正確に相殺するため係数を 3.0 に調整
+        const yinLatencyMs = 3000 / firstFreq;
+        timingDiffMs = (firstSampleTime - audioState.latencyCompensationMs - yinLatencyMs) - expectedNoteTimeMs;
         timingGrade = getTimingGrade(Math.abs(timingDiffMs));
         console.log(`[Timing] Note ${rs.noteIdx}: diff=${Math.round(timingDiffMs)}ms, grade=${timingGrade}`);
       }
