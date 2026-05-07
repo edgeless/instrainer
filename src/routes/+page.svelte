@@ -6,25 +6,33 @@
   import ScorePanel from '$lib/components/ScorePanel.svelte';
   import Transport from '$lib/components/Transport.svelte';
   import ResultOverlay from '$lib/components/ResultOverlay.svelte';
-  import { playerState, setSong } from '$lib/stores/player.svelte';
-  import { audioState } from '$lib/stores/audio.svelte';
-  import { scoreState } from '$lib/stores/score.svelte';
+  import { playerState, setSong, getCountInBeats } from '$lib/stores/player.svelte';
+  import { audioState, requestMic, initAudioCtx, playDemoNote } from '$lib/stores/audio.svelte';
+  import { scoreState, resetScore } from '$lib/stores/score.svelte';
   import FreeScoreArea from '$lib/components/FreeScoreArea.svelte';
   import FreeScorePanel from '$lib/components/FreeScorePanel.svelte';
   import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
 
-  let transportRef: ReturnType<typeof Transport> | undefined = $state(undefined);
+  let startRecord: () => void;
+  let stopRecord: () => void;
 
-  onMount(() => {
-    if (typeof window !== 'undefined') {
-      (window as any).__states = { audioState, playerState, scoreState, setSong };
-    }
-  });
+  // E2Eテスト用に状態をグローバルに露出（早期アタッチ）
+  if (browser) {
+    (window as any).__states = { 
+      audioState, playerState, scoreState, 
+      setSong, resetScore, requestMic, initAudioCtx,
+      startRecording: () => startRecord(),
+      stopRecording: async () => await stopRecord(),
+      playDemoNote,
+      getCountInBeats
+    };
+  }
 </script>
 
 <MicPermission />
 
-<Header {transportRef} />
+<Header />
 
 <div class="app">
   {#if playerState.isFreeMode}
@@ -42,7 +50,7 @@
     {/if}
   </aside>
 
-  <Transport bind:this={transportRef} />
+  <Transport bind:startRecord bind:stopRecord />
 </div>
 
 <ResultOverlay />

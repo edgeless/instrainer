@@ -1,5 +1,6 @@
 import { SONGS, type Song } from '$lib/utils/songs';
 import { browser } from '$app/environment';
+import { audioState } from './audio.svelte';
 
 interface PlayerState {
   currentSongKey: string;

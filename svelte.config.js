@@ -21,12 +21,15 @@ const config = {
 			mode: 'auto',
 			directives: {
 				'default-src': ['self'],
-				'script-src': ['self'],
+				'script-src': process.env.NODE_ENV === 'production' 
+					? ['self', 'wasm-unsafe-eval'] 
+					: ['self', 'wasm-unsafe-eval', 'unsafe-eval'],
 				'style-src': ['self', 'unsafe-inline', 'https://fonts.googleapis.com'],
 				'font-src': ['self', 'https://fonts.gstatic.com'],
 				'img-src': ['self', 'data:'],
 				'media-src': ['self', 'blob:'],
-				'connect-src': ['self'],
+				'connect-src': ['self', 'https://huggingface.co', 'https://*.huggingface.co', 'https://*.hf.co'],
+				'worker-src': ['self', 'blob:'],
 				'object-src': ['none'],
 				'base-uri': ['self']
 			}

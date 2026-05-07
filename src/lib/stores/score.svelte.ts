@@ -11,10 +11,12 @@ export type NoteResult = {
 };
 
 export type RecordedSample = {
-  noteIdx: number;
-  loopIdx: number;
-  samples: { freq: number, isSliding: boolean, time: number }[];
+  freq: number;
+  time: number;
+  isSliding: boolean;
 };
+
+import { playerState } from '$lib/stores/player.svelte';
 
 export const scoreState = $state<{
   noteResults: (NoteResult | null)[];
@@ -29,6 +31,8 @@ export const scoreState = $state<{
     sampleCount: number;
     excludedSamples: number;
   };
+  pitchAccuracy: number;
+  timingAccuracy: number;
 }>({
   noteResults: [],
   recordedSamples: [],
@@ -41,6 +45,34 @@ export const scoreState = $state<{
     stability: null,
     sampleCount: 0,
     excludedSamples: 0
+  },
+  get pitchAccuracy() {
+    const totalNotes = playerState.song.notes.length;
+    if (totalNotes === 0) return 0;
+    const maxScore = totalNotes * 30;
+    const totalScore = this.noteResults.reduce((sum, r) => {
+      if (!r || r.avgCents === null) return sum;
+      const g = r.pitchGrade || r.grade;
+      if (g === 'perfect') return sum + 30;
+      if (g === 'good') return sum + 20;
+      if (g === 'ok') return sum + 10;
+      return sum;
+    }, 0);
+    return totalScore / maxScore;
+  },
+  get timingAccuracy() {
+    const totalNotes = playerState.song.notes.length;
+    if (totalNotes === 0) return 0;
+    const maxScore = totalNotes * 30;
+    const totalScore = this.noteResults.reduce((sum, r) => {
+      if (!r || r.timingDiffMs === null || r.timingDiffMs === undefined) return sum;
+      const g = r.timingGrade || r.grade;
+      if (g === 'perfect') return sum + 30;
+      if (g === 'good') return sum + 20;
+      if (g === 'ok') return sum + 10;
+      return sum;
+    }, 0);
+    return totalScore / maxScore;
   }
 });
 

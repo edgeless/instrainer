@@ -7,25 +7,9 @@
   }
 
   let graded = $derived(scoreState.noteResults.filter((r) => r && r.grade));
-  let maxPitchScore = $derived(playerState.song.notes.length * 30);
-  let maxTimingScore = $derived(playerState.song.notes.length * 30);
 
-  let totalPitchScore = $derived(
-    scoreState.noteResults.reduce((sum, r) => {
-      if (!r || r.pitchGrade === 'miss' || r.avgCents === null) return sum;
-      return sum + Math.max(0, 30 - Math.abs(r.avgCents));
-    }, 0)
-  );
-
-  let totalTimingScore = $derived(
-    scoreState.noteResults.reduce((sum, r) => {
-      if (!r || r.timingGrade === 'miss' || r.timingDiffMs === null || r.timingDiffMs === undefined) return sum;
-      return sum + Math.max(0, 30 - (Math.abs(r.timingDiffMs) * 30 / 200)); // Map 200ms to 0 points
-    }, 0)
-  );
-
-  let pitchPercent = $derived(maxPitchScore > 0 ? (totalPitchScore / maxPitchScore) * 100 : 0);
-  let timingPercent = $derived(maxTimingScore > 0 ? (totalTimingScore / maxTimingScore) * 100 : 0);
+  let pitchPercent = $derived(scoreState.pitchAccuracy * 100);
+  let timingPercent = $derived(scoreState.timingAccuracy * 100);
   let overallPercent = $derived((pitchPercent + timingPercent) / 2);
   let scoreText = $derived(`${overallPercent.toFixed(1)}%`);
 

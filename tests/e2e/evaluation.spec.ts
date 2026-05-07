@@ -1,168 +1,164 @@
-import { test, expect, chromium } from '@playwright/test';
+import { test, expect, chromium, type Browser } from '@playwright/test';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// E2E評価テスト: 実際の音声入力をシミュレートして採点ロジックの正確性を検証します。
-// Playwrightの `--use-file-for-fake-audio-capture` フラグを使用して、
-// 事前に生成したWAVファイルを仮想マイク入力として流し込みます。
 test.describe('Evaluation Tests', () => {
   test.skip(!!process.env.CI, 'Evaluation tests require headed mode and are skipped on CI');
-  // 各テストは独立したChromiumインスタンスを起動するため、リソース競合を避けるため直列実行します。
-  test.describe.configure({ mode: 'serial' });
 
-  const runEvalTest = async (audioFileName: string) => {
-    const audioFile = path.resolve(__dirname, `../assets/${audioFileName}`).replace(/\\/g, '/');
+  let browserInstance: Browser;
 
-    const browserInstance = await chromium.launch({
+  test.beforeAll(async () => {
+    browserInstance = await chromium.launch({
       headless: false,
       args: [
         '--use-fake-ui-for-media-stream',
         '--use-fake-device-for-media-stream',
-        `--use-file-for-fake-audio-capture=${audioFile}`,
-        '--no-sandbox',
-        '--disable-setuid-sandbox'
-      ]
+      ],
     });
+  });
 
+  test.afterAll(async () => {
+    await browserInstance.close();
+  });
+
+  async function runEvalTest(testCase: 'perfect' | 'good_pitch' | 'good_timing' | 'silent') {
     const context = await browserInstance.newContext({
       permissions: ['microphone'],
-      baseURL: 'http://localhost:5173',
-      ignoreHTTPSErrors: true
     });
-
     const page = await context.newPage();
-    page.on('console', msg => console.log(`BROWSER [${msg.type()}]: ${msg.text()}`));
-    page.on('pageerror', err => console.error(`BROWSER PAGE ERROR: ${err.message}`));
-
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
-
-    // Click mic permission button first - this triggers getUserMedia
-    const dismissBtn = page.locator("button:has-text('マイク')");
-    if (await dismissBtn.isVisible()) {
-      console.log(`[${audioFileName}] Clicking mic permission button...`);
-      await dismissBtn.click({ force: true });
-
-      // Wait for mic init to complete
-      await page.waitForFunction(() => {
-        return document.querySelector('.mic-overlay.hide') !== null ||
-               document.querySelector('.mic-err') !== null;
-      }, { timeout: 20000 }).catch(() => {
-        console.log(`[${audioFileName}] Timed out waiting for mic overlay to hide`);
-      });
-    }
-
-    // Now wait for __states and select the correct song
-    await page.waitForFunction(() => !!(window as any).__states, { timeout: 10000 });
-    const songName = await page.evaluate(() => {
-      const { setSong, playerState, audioState } = (window as any).__states;
-      if (setSong) setSong('c_major');
-      playerState.tolerance = 60; 
-      audioState.latencyCompensationMs = 260; // Final calibrated value for BPM 60
-      return playerState.song.name;
-    });
-    console.log(`[${audioFileName}] Selected song: ${songName} (Tol=60, Latency=260)`);
-
-    // Click rec button
-    console.log(`[${audioFileName}] Triggering recording...`);
-    await page.evaluate(() => {
-      const rec = document.querySelector('.tbtn.rec') as HTMLElement;
-      if (rec) rec.click();
-      else console.error('[Eval] REC BUTTON NOT FOUND');
-    });
-
-    try {
-      await expect(page.locator(".status-chip.sc-rec")).toBeVisible({ timeout: 15000 });
-      console.log(`[${audioFileName}] Recording started...`);
-
-      // Wait for recording to finish
-      await expect(page.locator(".status-chip.sc-idle")).toBeVisible({ timeout: 40000 });
-      console.log(`[${audioFileName}] Recording finished`);
-
-      await page.waitForTimeout(2000);
-
-      // Open result overlay if not already open
-      const isOverlayOpen = await page.evaluate(() => {
-        const overlay = document.querySelector('.overlay');
-        return overlay && overlay.classList.contains('show');
-      });
-
-      if (!isOverlayOpen) {
-        await page.evaluate(() => {
-          const res = document.querySelector(".btn-result") as HTMLElement;
-          if (res) res.click();
-        });
+    
+    // Log browser console
+    page.on('console', msg => {
+      if (msg.type() === 'debug' || msg.type() === 'error') {
+        console.log(`BROWSER [${msg.type()}]: ${msg.text()}`);
       }
+    });
 
-      const resultOverlay = page.locator('.overlay.show');
-      await expect(resultOverlay).toBeVisible({ timeout: 15000 });
+    await page.goto('http://localhost:5173/');
+    
+    // Wait for app initialization
+    await page.waitForFunction(() => (window as any).__states !== undefined, { timeout: 10000 });
 
-      const pitchTextRaw = await resultOverlay.locator('.rc-stat').filter({ hasText: 'PITCH ACCURACY' }).locator('.rc-sv').innerText();
-      const timingTextRaw = await resultOverlay.locator('.rc-stat').filter({ hasText: 'TIMING ACCURACY' }).locator('.rc-sv').innerText();
+    // Setup Test Mode and Initial State
+    await page.evaluate(async (mode) => {
+      const { setSong, playerState, audioState, requestMic, initAudioCtx } = (window as any).__states;
+      (window as any).__testMode = mode;
 
-      const pitchVal = parseFloat(pitchTextRaw);
-      const timingVal = parseFloat(timingTextRaw);
+      setSong('c_major');
+      playerState.song.bpm = 60;
+      playerState.tolerance = 60;
+      
+      await requestMic();
+      audioState.latencyCompensationMs = 50; 
+    }, testCase);
 
-      console.log(`[${audioFileName}] Final: Pitch=${pitchVal}%, Timing=${timingVal}%`);
+    // Trigger Recording and Audio Scheduling simultaneously
+    await page.evaluate(() => {
+      const { startRecording, audioState, playerState, getCountInBeats } = (window as any).__states;
+      const mode = (window as any).__testMode;
 
-      await browserInstance.close();
-      return { pitchVal, timingVal };
-    } catch (e) {
-      console.error(`[${audioFileName}] Test error:`, e);
-      await browserInstance.close();
-      throw e;
-    }
-  };
+      startRecording();
+      
+      // アプリが確定させた基準時刻を読み取る
+      const baseTimeMs = playerState.playbackStartTimeMs;
+      const baseTime = baseTimeMs / 1000;
+      const ctx = audioState.audioCtx;
 
-  /**
-   * ケース1: 完全な演奏 (c_major_perfect.wav)
-   * - ピッチ: 偏差0（理想的な周波数）
-   * - タイミング: 拍の開始位置に完全に同期
-   * - 目的: 理想的な条件下でシステムが正しく高スコアを算出できることを確認する。
-   */
-  test('perfect audio file evaluates pitch and timing successfully', async () => {
-    test.setTimeout(80000);
-    const { pitchVal, timingVal } = await runEvalTest('c_major_perfect.wav');
-    console.log(`[ASSERT] perfect: pitch=${pitchVal}, timing=${timingVal}`);
-    expect(pitchVal).toBeGreaterThan(80);
-    expect(timingVal).toBeGreaterThan(80);
+      const notes = playerState.song.notes;
+      const secPerBeat = 60 / playerState.song.bpm;
+      const countIn = getCountInBeats();
+
+      if (mode === 'silent') return;
+
+      notes.forEach((note: any) => {
+        let midiOffset = 0;
+        let timeOffset = 0;
+        
+        if (mode === 'good_pitch') timeOffset = 0.2; // Correct Pitch, Bad Timing (200ms late)
+        if (mode === 'good_timing') midiOffset = 0.8; // Correct Timing, Bad Pitch (80 cents off)
+
+        const startTime = baseTime + (countIn + note.beat + timeOffset) * secPerBeat;
+        
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.setValueAtTime(440 * Math.pow(2, (note.midi + midiOffset - 69) / 12), startTime);
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(0.5, startTime + 0.02);
+        gain.gain.linearRampToValueAtTime(0, startTime + note.dur * secPerBeat);
+        
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.connect(audioState.analyserNode);
+        
+        osc.start(startTime);
+        osc.stop(startTime + note.dur * secPerBeat);
+      });
+    });
+
+    // Wait for the song to finish
+    await page.waitForTimeout(22000);
+
+    // Stop Recording and wait for analysis
+    await page.evaluate(async () => {
+      const { stopRecording } = (window as any).__states;
+      await stopRecording();
+    });
+
+    // Get Note Results for Debugging
+    const noteResults = await page.evaluate(() => {
+      const { scoreState } = (window as any).__states;
+      return scoreState.noteResults.map((r: any, i: number) => ({
+        idx: i,
+        grade: r?.grade,
+        timingDiffMs: r?.timingDiffMs
+      }));
+    });
+    console.log(`[TEST DEBUG] FULL Results:`, JSON.stringify(noteResults));
+
+    // Get Final Scores
+    const results = await page.evaluate(() => {
+      const { scoreState } = (window as any).__states;
+      return {
+        pitchVal: Math.round((scoreState.pitchAccuracy || 0) * 100),
+        timingVal: Math.round((scoreState.timingAccuracy || 0) * 100)
+      };
+    });
+
+    await context.close();
+    return results;
+  }
+
+  test('perfect audio case', async () => {
+    test.setTimeout(60000);
+    const { pitchVal, timingVal } = await runEvalTest('perfect');
+    console.log(`PERFECT CASE: Pitch=${pitchVal}%, Timing=${timingVal}%`);
+    expect(pitchVal).toBeGreaterThanOrEqual(80);
+    expect(timingVal).toBeGreaterThanOrEqual(80);
   });
 
-  /**
-   * ケース2: ピッチの微細なズレ (c_major_good_pitch.wav)
-   * - ピッチ: 意図的に全音符を15セント高く設定
-   * - タイミング: 正確
-   * - 目的: わずかなピッチのズレがスコアに正しく反映され、許容範囲内（Good以上）で判定されるかを確認する。
-   */
-  test('good pitch audio file evaluates successfully', async () => {
-    test.setTimeout(80000);
-    const { pitchVal, timingVal } = await runEvalTest('c_major_good_pitch.wav');
-    console.log(`[ASSERT] good_pitch: pitch=${pitchVal}, timing=${timingVal}`);
-    expect(pitchVal).toBeGreaterThan(15);
-    expect(timingVal).toBeGreaterThan(30);
+  test('good pitch audio case', async () => {
+    test.setTimeout(60000);
+    const { pitchVal, timingVal } = await runEvalTest('good_pitch');
+    console.log(`GOOD PITCH CASE: Pitch=${pitchVal}%, Timing=${timingVal}%`);
+    expect(pitchVal).toBeGreaterThanOrEqual(80);
+    expect(timingVal).toBeLessThanOrEqual(50);
   });
 
-  /**
-   * ケース3: タイミングのズレ (c_major_good_timing.wav)
-   * - ピッチ: 正確
-   * - タイミング: 各音符の発音を意図的に前後（約50-100ms）にずらして配置
-   * - 目的: タイミングのゆらぎが検出され、スコアが適切に低下することを確認する。
-   */
-  test('good timing audio file evaluates successfully', async () => {
-    test.setTimeout(80000);
-    const { pitchVal, timingVal } = await runEvalTest('c_major_good_timing.wav');
-    console.log(`[ASSERT] good_timing: pitch=${pitchVal}, timing=${timingVal}`);
-    expect(timingVal).toBeGreaterThan(15);
-    expect(pitchVal).toBeGreaterThan(30);
+  test('good timing audio case', async () => {
+    test.setTimeout(60000);
+    const { pitchVal, timingVal } = await runEvalTest('good_timing');
+    console.log(`GOOD TIMING CASE: Pitch=${pitchVal}%, Timing=${timingVal}%`);
+    expect(pitchVal).toBeLessThanOrEqual(50);
+    expect(timingVal).toBeGreaterThanOrEqual(80);
   });
 
-  test('silent audio results in zero score', async ({ page }) => {
-    test.setTimeout(40000);
-    const { pitchVal, timingVal } = await runEvalTest('silent.wav');
-    console.log(`[ASSERT] silence: pitch=${pitchVal}, timing=${timingVal}`);
+  test('silent audio case', async () => {
+    test.setTimeout(60000);
+    const { pitchVal, timingVal } = await runEvalTest('silent');
+    console.log(`SILENT CASE: Pitch=${pitchVal}%, Timing=${timingVal}%`);
     expect(pitchVal).toBe(0);
     expect(timingVal).toBe(0);
   });

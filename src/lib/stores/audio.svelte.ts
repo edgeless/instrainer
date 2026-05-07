@@ -1,265 +1,101 @@
-import { midiToFreq } from '$lib/utils/pitch';
+import { browser } from '$app/environment';
 
-const STORAGE_KEY_INPUT = 'audio_input_device_id';
-const STORAGE_KEY_OUTPUT = 'audio_output_device_id';
-const STORAGE_KEY_VOLUME = 'audio_master_volume';
-
-function loadSavedDeviceId(key: string): string {
-  if (typeof localStorage === 'undefined') return '';
-  return localStorage.getItem(key) ?? '';
-}
-
-function saveDeviceId(key: string, value: string): void {
-  if (typeof localStorage === 'undefined') return;
-  if (value) {
-    localStorage.setItem(key, value);
-  } else {
-    localStorage.removeItem(key);
-  }
-}
-
-export const audioState = $state<{
-  audioCtx: AudioContext | null;
-  analyserNode: AnalyserNode | null;
-  micStream: MediaStream | null;
-  micSource: MediaStreamAudioSourceNode | null;
-  pitchBuf: Float32Array | null;
-  micError: string | null;
-  micGranted: boolean;
-  devices: MediaDeviceInfo[];
-  selectedInputId: string;
-  selectedOutputId: string;
-  recordedAudioUrl: string | null;
-  masterVolume: number;
-  latencyCompensationMs: number;
-}>({
-  audioCtx: null,
-  analyserNode: null,
-  micStream: null,
-  micSource: null,
-  pitchBuf: null,
-  micError: null,
-  micGranted: false,
-  devices: [],
-  selectedInputId: loadSavedDeviceId(STORAGE_KEY_INPUT),
-  selectedOutputId: loadSavedDeviceId(STORAGE_KEY_OUTPUT),
-  recordedAudioUrl: null,
-  masterVolume: Number(loadSavedDeviceId(STORAGE_KEY_VOLUME) || '1'),
-  latencyCompensationMs: 250
+export const audioState = $state({
+  audioCtx: null as AudioContext | null,
+  analyserNode: null as AnalyserNode | null,
+  micStream: null as MediaStream | null,
+  pitchBuf: null as Float32Array | null,
+  inputDevices: [] as MediaDeviceInfo[],
+  outputDevices: [] as MediaDeviceInfo[],
+  selectedInputId: '',
+  selectedOutputId: '',
+  masterVolume: 0.8,
+  latencyCompensationMs: 250,
+  isAudioInitialized: false,
+  error: ''
 });
 
-export function setMasterVolume(vol: number) {
-  audioState.masterVolume = vol;
-  saveDeviceId(STORAGE_KEY_VOLUME, vol.toString());
+let activeOscillators: OscillatorNode[] = [];
+
+export function getAudioTimeMs(): number {
+  if (!browser || !audioState.audioCtx) return performance.now();
+  return audioState.audioCtx.currentTime * 1000;
 }
 
-export async function requestMic(deviceIdOrEvent?: string | Event) {
-  let deviceId = typeof deviceIdOrEvent === 'string' ? deviceIdOrEvent : undefined;
-  if (!deviceId && audioState.selectedInputId) {
-    deviceId = audioState.selectedInputId;
-  }
-
+export async function initAudio() {
+  if (!browser) return;
   try {
-    if (audioState.micStream) {
-      audioState.micStream.getTracks().forEach(track => track.stop());
-    }
-    if (audioState.micSource) {
-      audioState.micSource.disconnect();
-      audioState.micSource = null;
-    }
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    audioState.inputDevices = devices.filter((d) => d.kind === 'audioinput');
+    audioState.outputDevices = devices.filter((d) => d.kind === 'audiooutput');
+    if (audioState.inputDevices.length > 0) audioState.selectedInputId = audioState.inputDevices[0].deviceId;
+    if (audioState.outputDevices.length > 0) audioState.selectedOutputId = audioState.outputDevices[0].deviceId;
+  } catch (err) {}
+}
 
-    const constraints: MediaStreamConstraints = {
-      audio: {
-        echoCancellation: false, noiseSuppression: false, autoGainControl: false,
-        ...(deviceId ? { deviceId: { exact: deviceId } } : {})
-      }
-    };
-    let stream: MediaStream;
-
-    try {
-      stream = await navigator.mediaDevices.getUserMedia(constraints);
-    } catch (e) {
-      if (deviceId) {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-        });
-      } else {
-        throw e;
-      }
-    }
+export async function requestMic() {
+  if (!browser) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     audioState.micStream = stream;
-
-    if (!audioState.audioCtx) {
-      // Voicemeeter等の環境下でサンプリングレートの不一致によるレンダラクラッシュを防ぐため、
-      // 原則として sampleRate はOS既定値に委ねる（指定しない）。
-      audioState.audioCtx = new window.AudioContext();
-
-      audioState.analyserNode = audioState.audioCtx.createAnalyser();
-      audioState.analyserNode.fftSize = 4096;
-      audioState.analyserNode.smoothingTimeConstant = 0.1;
-      audioState.pitchBuf = new Float32Array(audioState.analyserNode.fftSize);
-    } else {
-      if (audioState.audioCtx.state === 'suspended') {
-        await audioState.audioCtx.resume();
-      }
-    }
-    
-    const acWithSink = audioState.audioCtx as unknown as AudioContextWithSink;
-    if (audioState.selectedOutputId && typeof acWithSink.setSinkId === 'function') {
-      try {
-        await acWithSink.setSinkId(audioState.selectedOutputId);
-        
-        // 非同期クラッシュチェック
-        await new Promise(r => setTimeout(r, 200));
-        if (audioState.audioCtx.state === 'suspended' || audioState.audioCtx.state === 'closed') {
-          throw new Error("Renderer crashed");
-        }
-      } catch(e) {
-        console.warn("setSinkId failed:", e);
-        audioState.selectedOutputId = '';
-        saveDeviceId(STORAGE_KEY_OUTPUT, '');
-        if (typeof window !== 'undefined') {
-          window.alert("前回選択した出力デバイスの復元に失敗しました（クラッシュ検知）。OS標準の出力にリセットします。");
-        }
-        // クラッシュしたContextを一度破棄し、すぐに作り直す
-        try { await audioState.audioCtx.close(); } catch(err) {}
-        audioState.audioCtx = new window.AudioContext();
-        audioState.analyserNode = audioState.audioCtx.createAnalyser();
-        audioState.analyserNode.fftSize = 4096;
-        audioState.pitchBuf = new Float32Array(audioState.analyserNode.fftSize);
-      }
-    }
-    
-    audioState.micSource = audioState.audioCtx.createMediaStreamSource(stream);
-    audioState.micSource.connect(audioState.analyserNode!);
-    audioState.micGranted = true;
-    audioState.micError = null;
-
-    await updateDevices();
-    const track = stream.getAudioTracks()[0];
-    if (track) {
-      const settings = track.getSettings();
-      if (settings.deviceId) {
-        audioState.selectedInputId = settings.deviceId;
-        saveDeviceId(STORAGE_KEY_INPUT, settings.deviceId);
-      }
-    }
-  } catch (e: any) {
-    audioState.micError = 'エラー: ' + e.message;
-    audioState.micGranted = false;
+    await initAudioCtx();
+    const source = audioState.audioCtx!.createMediaStreamSource(stream);
+    source.connect(audioState.analyserNode!);
+    audioState.isAudioInitialized = true;
+  } catch (err) {
+    console.error(err);
+    audioState.error = 'Mic error';
   }
 }
 
-export async function updateDevices() {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  audioState.devices = devices.filter(d => d.kind === 'audioinput' || d.kind === 'audiooutput');
+export async function initAudioCtx() {
+  if (!browser || audioState.audioCtx) return;
+  const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+  // Restore fixed 44100Hz for stable pitch detection.
+  // Dynamic beat calculation in Transport.svelte will handle any clock drift.
+  audioState.audioCtx = new AudioContextClass({ sampleRate: 44100 });
+  
+  audioState.analyserNode = audioState.audioCtx.createAnalyser();
+  audioState.analyserNode.fftSize = 4096;
+  audioState.pitchBuf = new Float32Array(audioState.analyserNode.fftSize);
 }
 
-export async function setOutputDevice(deviceId: string) {
-  audioState.selectedOutputId = deviceId;
-  saveDeviceId(STORAGE_KEY_OUTPUT, deviceId);
-  const acWithSink = audioState.audioCtx as unknown as AudioContextWithSink;
-  if (!acWithSink) return;
-  if (typeof acWithSink.setSinkId === 'function') {
-    try { 
-      await acWithSink.setSinkId(deviceId); 
-      // 非同期クラッシュをチェック
-      await new Promise(r => setTimeout(r, 200));
-      if (audioState.audioCtx?.state === 'suspended' || audioState.audioCtx?.state === 'closed') {
-        throw new Error("Renderer crashed");
-      }
-    } catch (e) {
-      console.warn("setSinkId error", e);
-      audioState.selectedOutputId = '';
-      saveDeviceId(STORAGE_KEY_OUTPUT, '');
-      if (typeof window !== 'undefined') {
-        window.alert("出力デバイスの変更に失敗したため、OS標準の出力にリセットしました。\n(※仮想オーディオデバイスなどで発生しやすいChromiumの既知の問題です)");
-      }
-      try { await acWithSink.setSinkId(''); } catch (err) {}
-      
-      // 完全にクラッシュした場合はコンテキストを閉じ、次回の再生等で再生成させる
-      if (audioState.audioCtx?.state === 'suspended' || audioState.audioCtx?.state === 'closed') {
-        try { await audioState.audioCtx.close(); } catch(err) {}
-      }
-    }
-  }
-}
-
-export function playClick(accent: boolean) {
-  const ac = audioState.audioCtx;
-  if (!ac) return;
-  const time = ac.currentTime;
-  const osc = ac.createOscillator();
-  const gain = ac.createGain();
+export function playClick(freq = 1000, duration = 0.05) {
+  if (!browser || !audioState.audioCtx) return;
+  const ctx = audioState.audioCtx;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.frequency.setValueAtTime(freq, ctx.currentTime);
+  gain.gain.setValueAtTime(0.2 * audioState.masterVolume, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
   osc.connect(gain);
-  gain.connect(ac.destination);
-  osc.frequency.value = accent ? 1200 : 900;
-  const baseGain = accent ? 0.3 : 0.15;
-  gain.gain.setValueAtTime(baseGain * audioState.masterVolume, time);
-  gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
-  osc.start(time);
-  osc.stop(time + 0.06);
+  gain.connect(ctx.destination);
+  osc.start();
+  osc.stop(ctx.currentTime + duration);
 }
 
-// 進行中のデモ用オシレーターを管理するリスト
-export const activeDemoOscillators: OscillatorNode[] = [];
+export function playDemoNote(freq: number, startTime: number, duration: number) {
+  if (!browser || !audioState.audioCtx) return;
+  const ctx = audioState.audioCtx;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.frequency.setValueAtTime(freq, startTime);
+  gain.gain.setValueAtTime(0, startTime);
+  gain.gain.linearRampToValueAtTime(0.3 * audioState.masterVolume, startTime + 0.02);
+  gain.gain.linearRampToValueAtTime(0, startTime + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(startTime);
+  osc.stop(startTime + duration);
+  activeOscillators.push(osc);
+}
 
 export function stopDemoNotes() {
-  for (const osc of activeDemoOscillators) {
-    try {
-      osc.stop();
-      osc.disconnect();
-    } catch (e) {
-      // already stopped or disconnected
-    }
-  }
-  activeDemoOscillators.length = 0;
+  activeOscillators.forEach(osc => { try { osc.stop(); } catch(e) {} });
+  activeOscillators = [];
 }
 
-export function playDemoNote(midi: number, durationSec: number, delaySec: number = 0) {
-  const ac = audioState.audioCtx;
-  if (!ac) return;
-
-  const time = ac.currentTime + delaySec;
-  const freq = midiToFreq(midi);
-
-  const osc = ac.createOscillator();
-  const gain = ac.createGain();
-
-  osc.type = 'sine';
-  osc.frequency.value = freq;
-
-  osc.connect(gain);
-  gain.connect(ac.destination);
-
-  // Attack, Decay, Sustain, Release (ADSR) envelope for a somewhat musical sound
-  const attackTime = 0.02;
-  const releaseTime = 0.05;
-  const maxGain = 0.5 * audioState.masterVolume;
-
-  gain.gain.setValueAtTime(0, time);
-  gain.gain.linearRampToValueAtTime(maxGain, time + attackTime);
-
-  // Slight decay
-  gain.gain.exponentialRampToValueAtTime(maxGain * 0.8, time + attackTime + 0.1);
-
-  // Release
-  gain.gain.setValueAtTime(maxGain * 0.8, time + durationSec - releaseTime);
-  gain.gain.linearRampToValueAtTime(0.001, time + durationSec);
-
-  osc.start(time);
-  osc.stop(time + durationSec + 0.1); // add a little buffer for release
-
-  activeDemoOscillators.push(osc);
-
-  // クリーンアップ
-  osc.onended = () => {
-    const idx = activeDemoOscillators.indexOf(osc);
-    if (idx !== -1) {
-      activeDemoOscillators.splice(idx, 1);
-    }
-    osc.disconnect();
-    gain.disconnect();
-  };
-}
+export function setMasterVolume(v: number) { audioState.masterVolume = v; }
+export function setLatency(ms: number) { audioState.latencyCompensationMs = ms; }
+export async function setInputDevice(id: string) { audioState.selectedInputId = id; }
+export async function setOutputDevice(id: string) { audioState.selectedOutputId = id; }
