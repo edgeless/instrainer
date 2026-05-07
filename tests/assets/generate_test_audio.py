@@ -2,6 +2,7 @@ import wave
 import struct
 import math
 import sys
+import os
 
 def midi_to_freq(midi):
     return 440 * math.pow(2, (midi - 69) / 12)
@@ -9,7 +10,10 @@ def midi_to_freq(midi):
 def generate_wav(filename, notes, bpm, sample_rate=48000):
     sec_per_beat = 60.0 / bpm
 
-    with wave.open(filename, 'w') as wav_file:
+    # Ensure output directory exists
+    output_path = os.path.join(os.path.dirname(__file__), filename)
+
+    with wave.open(output_path, 'w') as wav_file:
         wav_file.setnchannels(1)
         wav_file.setsampwidth(2) # 16-bit
         wav_file.setframerate(sample_rate)
@@ -43,73 +47,45 @@ def generate_wav(filename, notes, bpm, sample_rate=48000):
                 t = (i - start_sample) / sample_rate
                 sample = math.sin(2.0 * math.pi * freq * t)
                 envelope = 1.0
+                # Smooth attack/release to avoid pops
                 if (i - start_sample) < 0.05 * sample_rate:
                     envelope = (i - start_sample) / (0.05 * sample_rate)
                 elif (end_sample - i) < 0.05 * sample_rate:
                     envelope = (end_sample - i) / (0.05 * sample_rate)
 
-                buffer[i] = int(sample * envelope * 32767.0)
+                buffer[i] = int(sample * envelope * 32767.0 * 0.9)
 
         if filename == 'silent.wav':
             # Keep buffer as all zeros
             pass
 
-        for s in buffer:
-            clamped_s = max(-32768, min(32767, s))
-            wav_file.writeframes(struct.pack('h', clamped_s))
+        # Write to file
+        for sample in buffer:
+            wav_file.writeframes(struct.pack('<h', sample))
 
-if __name__ == "__main__":
-    target_sample_rate = 48000
-    if len(sys.argv) > 1:
-        try:
-            target_sample_rate = int(sys.argv[1])
-        except ValueError:
-            pass
-
+if __name__ == '__main__':
+    target_sample_rate = int(sys.argv[1]) if len(sys.argv) > 1 else 44100
     print(f"Generating test WAV files with sample_rate={target_sample_rate}...")
     bpm = 60
     
     c_major_midi = [
-        {"beat": 0,  "dur": 1, "midi": 36},  # C2
-        {"beat": 1,  "dur": 1, "midi": 38},  # D2
-        {"beat": 2,  "dur": 1, "midi": 40},  # E2
-        {"beat": 3,  "dur": 1, "midi": 41},  # F2
-        {"beat": 4,  "dur": 1, "midi": 43},  # G2
-        {"beat": 5,  "dur": 1, "midi": 45},  # A2
-        {"beat": 6,  "dur": 1, "midi": 47},  # B2
-        {"beat": 7,  "dur": 1, "midi": 48},  # C3
-        {"beat": 8,  "dur": 1, "midi": 47},  # B2
-        {"beat": 9,  "dur": 1, "midi": 45},  # A2
-        {"beat": 10, "dur": 1, "midi": 43},  # G2
-        {"beat": 11, "dur": 1, "midi": 41},  # F2
-        {"beat": 12, "dur": 1, "midi": 40},  # E2
-        {"beat": 13, "dur": 1, "midi": 38},  # D2
-        {"beat": 14, "dur": 2, "midi": 36},  # C2
+        {"beat": 0,  "dur": 4, "midi": 36},  # C2 (Make first note longer for calibration)
+        {"beat": 8,  "dur": 1, "midi": 38},  # D2
+        {"beat": 9,  "dur": 1, "midi": 40},  # E2
+        {"beat": 10, "dur": 1, "midi": 41},  # F2
+        {"beat": 11, "dur": 1, "midi": 43},  # G2
+        {"beat": 12, "dur": 1, "midi": 45},  # A2
+        {"beat": 13, "dur": 1, "midi": 47},  # B2
+        {"beat": 14, "dur": 2, "midi": 48},  # C3
     ]
 
-    # No calibration offset needed: E2E tests use direct Web Audio API injection,
-    # bypassing Chromium's fake audio pipeline entirely.
-    calibration_ratio = 1.0
-    
-    # Perfect (Calibrated)
-    notes_perfect = [{"beat": n["beat"], "dur": n["dur"], "freq": midi_to_freq(n["midi"]) * calibration_ratio} for n in c_major_midi]
+    # Perfect
+    notes_perfect = [{"beat": n["beat"], "dur": n["dur"], "freq": midi_to_freq(n["midi"])} for n in c_major_midi]
     generate_wav('c_major_perfect.wav', notes_perfect, bpm, sample_rate=target_sample_rate)
-    suffix = " (Calibrated -108c)" if sys.platform == 'darwin' else ""
-    print(f"[OK] c_major_perfect.wav{suffix}")
-
-    # Good pitch (~15 cents sharp)
-    notes_good_pitch = [{"beat": n["beat"], "dur": n["dur"], "freq": n["freq"] * math.pow(2, 15/1200)} for n in notes_perfect]
-    generate_wav('c_major_good_pitch.wav', notes_good_pitch, bpm, sample_rate=target_sample_rate)
-    print("[OK] c_major_good_pitch.wav")
-
-    # Good timing (80ms late)
-    late_beats = 0.08 / (60.0 / bpm)
-    notes_good_timing = [{"beat": n["beat"] + late_beats, "dur": n["dur"], "freq": n["freq"]} for n in notes_perfect]
-    generate_wav('c_major_good_timing.wav', notes_good_timing, bpm, sample_rate=target_sample_rate)
-    print("[OK] c_major_good_timing.wav")
+    print(f"[OK] c_major_perfect.wav")
 
     # Silent
     generate_wav('silent.wav', [], bpm, sample_rate=target_sample_rate)
-    print("[OK] silent.wav")
+    print(f"[OK] silent.wav")
 
     print("Done!")

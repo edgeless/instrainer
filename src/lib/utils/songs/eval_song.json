@@ -5,19 +5,12 @@
   "timeSignature": [4, 4],
   "notes": [
     {"name":"C2", "midi":36, "string":"A", "fret":3, "beat":0, "dur":4},
-    {"name":"D3", "midi":38, "string":"A", "fret":5, "beat":8, "dur":1},
-    {"name":"E3", "midi":40, "string":"A", "fret":7, "beat":9, "dur":1},
-    {"name":"F3", "midi":41, "string":"A", "fret":8, "beat":10, "dur":1},
-    {"name":"G3", "midi":43, "string":"E", "fret":10, "beat":11, "dur":1},
-    {"name":"A3", "midi":45, "string":"G", "fret":2, "beat":12, "dur":1},
-    {"name":"B3", "midi":47, "string":"G", "fret":4, "beat":13, "dur":1},
-    {"name":"C4", "midi":48, "string":"G", "fret":5, "beat":14, "dur":1},
-    {"name":"B3", "midi":47, "string":"G", "fret":4, "beat":15, "dur":1},
-    {"name":"A3", "midi":45, "string":"G", "fret":2, "beat":16, "dur":1},
-    {"name":"G3", "midi":43, "string":"E", "fret":10, "beat":17, "dur":1},
-    {"name":"F3", "midi":41, "string":"A", "fret":8, "beat":18, "dur":1},
-    {"name":"E3", "midi":40, "string":"A", "fret":7, "beat":19, "dur":1},
-    {"name":"D3", "midi":38, "string":"A", "fret":5, "beat":20, "dur":1},
-    {"name":"C3", "midi":36, "string":"A", "fret":3, "beat":21, "dur":2}
+    {"name":"D2", "midi":38, "string":"A", "fret":5, "beat":8, "dur":1},
+    {"name":"E2", "midi":40, "string":"A", "fret":7, "beat":9, "dur":1},
+    {"name":"F2", "midi":41, "string":"D", "fret":3, "beat":10, "dur":1},
+    {"name":"G2", "midi":43, "string":"D", "fret":5, "beat":11, "dur":1},
+    {"name":"A2", "midi":45, "string":"D", "fret":7, "beat":12, "dur":1},
+    {"name":"B2", "midi":47, "string":"G", "fret":4, "beat":13, "dur":1},
+    {"name":"C3", "midi":48, "string":"G", "fret":5, "beat":14, "dur":2}
   ]
 }
