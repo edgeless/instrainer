@@ -4,7 +4,14 @@ import path from 'path';
 import { execSync } from 'child_process';
 
 /**
- * Accuracy Evaluation Tests (Full Suite)
+ * Accuracy Evaluation Tests (Strict Negative Testing)
+ * 
+ * 1. Perfect audio must score > 80% (actually ~100%).
+ * 2. Bad Pitch (+100c) must score < 60% (actually ~12.5% due to 1st note calibration).
+ * 3. Bad Timing (+500ms) must score < 60% (actually ~12.5%).
+ * 4. Silent must score 0%.
+ * 
+ * OK Threshold: 15 cents (Strict)
  */
 
 test.describe('Evaluation Tests', () => {
@@ -33,7 +40,7 @@ test.describe('Evaluation Tests', () => {
     }
   });
 
-  async function runEvalTest(audioFileName: string, tolerance = 60) {
+  async function runEvalTest(audioFileName: string) {
     const page = await browserInstance.newPage();
     page.on('console', msg => {
       if (msg.text().includes('[Timing]')) console.log(`BROWSER: ${msg.text()}`);
@@ -48,13 +55,13 @@ test.describe('Evaluation Tests', () => {
       await page.waitForTimeout(500);
     }
 
-    await page.evaluate(({ tol }) => {
-      const { setSong, playerState, audioState, scoreState } = (window as any).__states;
+    await page.evaluate(() => {
+      const { setSong, audioState, scoreState, playerState } = (window as any).__states;
       if (setSong) setSong('eval_song');
-      playerState.tolerance = 500; 
+      playerState.tolerance = 500; // 初期キャッチ用に広げる
       audioState.latencyCompensationMs = 0;
       (scoreState as any).maxHistory = 5000;
-    }, { tol: tolerance });
+    });
 
     const wavBase64 = fs.readFileSync(path.resolve(`tests/assets/${audioFileName}`)).toString('base64');
 
@@ -83,11 +90,10 @@ test.describe('Evaluation Tests', () => {
     await page.evaluate(() => { (window as any).__E2E_SOURCE__.start(); });
     await page.locator('.tbtn.rec').click();
 
-    // Calibration (Note 0)
     if (audioFileName !== 'silent.wav') {
       await page.evaluate(async () => {
         const { scoreState, audioState, playerState } = (window as any).__states;
-        const targetFreq = 65.4; 
+        const targetFreq = 65.4; // C2
         const start = performance.now();
         while (performance.now() - start < 8000) {
           const pbStart = playerState.playbackStartTimeMs;
@@ -96,7 +102,7 @@ test.describe('Evaluation Tests', () => {
             const match = scoreState.currentCentsHistory.find((h: any) => h.freq > targetFreq * 0.9 && h.freq < targetFreq * 1.1);
             if (match) {
               audioState.latencyCompensationMs = match.time - (pbStart + 4000);
-              playerState.tolerance = 60;
+              playerState.tolerance = 15; // ユーザー要望の厳格な基準（15セント）
               return;
             }
           }
@@ -124,25 +130,23 @@ test.describe('Evaluation Tests', () => {
     return evaluationResult;
   }
 
-  test('perfect audio file evaluates successfully', async () => {
+  test('perfect audio file evaluates successfully (Pitch > 80, Timing > 80)', async () => {
     const res = await runEvalTest('c_major_perfect.wav');
     console.log(`[RESULT] perfect: Pitch=${res.pitchAcc}%, Timing=${res.timingAcc}%`);
     expect(res.pitchAcc).toBeGreaterThan(80);
     expect(res.timingAcc).toBeGreaterThan(80);
   });
 
-  test('good pitch audio file evaluates successfully', async () => {
-    const res = await runEvalTest('c_major_good_pitch.wav');
-    console.log(`[RESULT] good_pitch: Pitch=${res.pitchAcc}%, Timing=${res.timingAcc}%`);
-    expect(res.pitchAcc).toBeGreaterThan(30); 
-    expect(res.timingAcc).toBeGreaterThan(80);
+  test('bad pitch audio file is correctly penalized (Pitch < 60)', async () => {
+    const res = await runEvalTest('c_major_bad_pitch.wav');
+    console.log(`[RESULT] bad_pitch: Pitch=${res.pitchAcc}%, Timing=${res.timingAcc}%`);
+    expect(res.pitchAcc).toBeLessThan(60); 
   });
 
-  test('good timing audio file evaluates successfully', async () => {
-    const res = await runEvalTest('c_major_good_timing.wav');
-    console.log(`[RESULT] good_timing: Pitch=${res.pitchAcc}%, Timing=${res.timingAcc}%`);
-    expect(res.pitchAcc).toBeGreaterThan(80);
-    expect(res.timingAcc).toBeGreaterThan(30);
+  test('bad timing audio file is correctly penalized (Timing < 60)', async () => {
+    const res = await runEvalTest('c_major_bad_timing.wav');
+    console.log(`[RESULT] bad_timing: Pitch=${res.pitchAcc}%, Timing=${res.timingAcc}%`);
+    expect(res.timingAcc).toBeLessThan(60);
   });
 
   test('silent audio results in zero score', async () => {

@@ -109,9 +109,9 @@ export function midiToNoteName(midi: number): string {
 export type Grade = 'perfect' | 'good' | 'ok' | 'miss';
 
 export function getGrade(absCents: number, tolerance: number): Grade {
-  if (absCents <= tolerance * 0.5) return 'perfect';
-  if (absCents <= tolerance) return 'good';
-  if (absCents <= tolerance * 2) return 'ok';
+  if (absCents <= tolerance * 0.4) return 'perfect';
+  if (absCents <= tolerance * 0.7) return 'good';
+  if (absCents <= tolerance) return 'ok';
   return 'miss';
 }
 

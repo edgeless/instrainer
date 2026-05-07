@@ -23,7 +23,9 @@ def generate_wav(filename, notes, bpm, sample_rate=48000):
         last_note = notes[-1] if notes else {"beat": 0, "dur": 4}
         total_beats = last_note['beat'] + last_note['dur']
         count_in_beats = 4
-        total_samples = int(((count_in_beats + total_beats) * sec_per_beat) * sample_rate)
+        # Calculate total samples more safely for potential beat shifts
+        max_beat = count_in_beats + total_beats + 2.0 
+        total_samples = int((max_beat * sec_per_beat) * sample_rate)
         buffer = [0] * total_samples
 
         for note in notes:
@@ -31,7 +33,6 @@ def generate_wav(filename, notes, bpm, sample_rate=48000):
             dur = note['dur']
             freq = note['freq']
             
-            # For 'good_timing.wav', we add jitter to beat
             start_beat = count_in_beats + beat
             end_beat = start_beat + dur
             start_sample = int((start_beat * sec_per_beat) * sample_rate)
@@ -69,25 +70,26 @@ if __name__ == '__main__':
     notes_perfect = [{"beat": n["beat"], "dur": n["dur"], "freq": midi_to_freq(n["midi"])} for n in c_major_midi]
     generate_wav('c_major_perfect.wav', notes_perfect, bpm, sample_rate=target_sample_rate)
 
-    # Good Pitch (+15 cents offset for Note 1+)
-    # 15 cents = 2^(15/1200) ratio
-    pitch_offset = math.pow(2, 15/1200)
-    notes_good_pitch = []
+    # Bad Pitch (+100 cents offset = 1 semitone sharp)
+    # OKが15cなので、100cあれば確実に全音ミスになる
+    pitch_offset = math.pow(2, 100/1200)
+    notes_bad_pitch = []
     for i, n in enumerate(c_major_midi):
         f = midi_to_freq(n["midi"])
-        if i > 0: f *= pitch_offset # Keep Note 0 (calibration) perfect
-        notes_good_pitch.append({"beat": n["beat"], "dur": n["dur"], "freq": f})
-    generate_wav('c_major_good_pitch.wav', notes_good_pitch, bpm, sample_rate=target_sample_rate)
+        if i > 0: f *= pitch_offset 
+        notes_bad_pitch.append({"beat": n["beat"], "dur": n["dur"], "freq": f})
+    generate_wav('c_major_bad_pitch.wav', notes_bad_pitch, bpm, sample_rate=target_sample_rate)
 
-    # Good Timing (+/- 75ms jitter for Note 1+)
-    notes_good_timing = []
+    # Bad Timing (+500ms shift for Note 1+)
+    # 500msは200ms(OK境界)を大きく超えるため確実に miss になる
+    notes_bad_timing = []
     for i, n in enumerate(c_major_midi):
         b = n["beat"]
-        if i > 0: b += random.uniform(-0.075, 0.075) # ~75ms at 60BPM
-        notes_good_timing.append({"beat": b, "dur": n["dur"], "freq": midi_to_freq(n["midi"])})
-    generate_wav('c_major_good_timing.wav', notes_good_timing, bpm, sample_rate=target_sample_rate)
+        if i > 0: b += 0.5 # 一律で0.5拍（500ms）遅らせる
+        notes_bad_timing.append({"beat": b, "dur": n["dur"], "freq": midi_to_freq(n["midi"])})
+    generate_wav('c_major_bad_timing.wav', notes_bad_timing, bpm, sample_rate=target_sample_rate)
 
     # Silent
     generate_wav('silent.wav', [], bpm, sample_rate=target_sample_rate)
     
-    print(f"Generated assets at {target_sample_rate}Hz.")
+    print(f"Generated strictly bad assets (fixed 100c/500ms shift) at {target_sample_rate}Hz.")
