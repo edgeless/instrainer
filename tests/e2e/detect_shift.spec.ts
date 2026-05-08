@@ -5,6 +5,7 @@ import fs from 'fs';
 
 test('detect windows pitch shift', async ({ browser }) => {
   const page = await browser.newPage();
+  page.on('console', msg => console.log(`BROWSER: ${msg.text()}`));
   await page.goto('http://localhost:5173/');
   
   const detectedSampleRate = await page.evaluate(async () => {

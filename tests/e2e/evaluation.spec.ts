@@ -1,6 +1,7 @@
 import { test, expect, type Browser } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
 
 /**
  * E2E Accuracy Evaluation Tests (Strict UI-Based Validation)
@@ -27,6 +28,18 @@ test.describe('E2E Evaluation Suite', () => {
     });
     console.log(`[E2E] System Sample Rate: ${detectedSampleRate}Hz`);
     await tempPage.close();
+
+    try {
+      console.log(`[E2E] Re-generating test assets at ${detectedSampleRate}Hz...`);
+      const scriptPath = path.resolve('tests/assets/generate_test_audio.py');
+      const assetsDir = path.resolve('tests/assets');
+      // Python3 を使用して資産を生成。Windows環境では 'python' の場合もあるため、
+      // 一般的な 'python' または 'python3' を試行する。
+      const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+      execSync(`${pythonCmd} "${scriptPath}" ${detectedSampleRate}`, { stdio: 'inherit', cwd: assetsDir });
+    } catch (e) {
+      console.error('[E2E] Failed to generate assets:', e);
+    }
   });
 
   async function runEvalTest(audioFileName: string) {
