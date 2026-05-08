@@ -114,11 +114,24 @@ describe('Beat and Duration Calculations', () => {
     assert.strictEqual(getOriginalBeats(), 8);
   });
 
+  test('getOriginalBeats handles fractional beats correctly', () => {
+    playerState.song.notes = [
+      { name: 'C2', midi: 28, string: 'E', fret: 0, beat: 0, dur: 1 },
+      { name: 'D2', midi: 30, string: 'E', fret: 2, beat: 1, dur: 2 },
+      { name: 'E2', midi: 32, string: 'E', fret: 4, beat: 3, dur: 1.5 },
+    ];
+    // Last note: beat 3, dur 1.5 -> total 4.5
+    assert.strictEqual(getOriginalBeats(), 4.5);
+  });
+
   test('getTotalBeats correctly multiplies getOriginalBeats by repeatCount', () => {
     playerState.song.notes = [
       { name: 'C2', midi: 36, string: 'A', fret: 3, beat: 0, dur: 4 }
     ];
     // Original beats = 4
+    playerState.repeatCount = 1;
+    assert.strictEqual(getTotalBeats(), 4);
+    
     playerState.repeatCount = 3;
     assert.strictEqual(getTotalBeats(), 12);
   });
