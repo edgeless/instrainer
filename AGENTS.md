@@ -42,7 +42,6 @@ AIコーディングエージェント向けの文書です。このドキュメ
   ```typescript
   const songName = await page.evaluate(({ tol }) => {
     const { setSong, playerState, audioState } = (window as any).__states;
-    (window as any).__E2E__ = true;
     if (setSong) setSong('c_major');
     playerState.tolerance = tol;
     audioState.latencyCompensationMs = 20; // Direct injection has minimal latency

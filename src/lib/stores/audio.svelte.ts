@@ -36,7 +36,6 @@ export const audioState = $state<{
   /** 
    * システム全体のレイテンシ補正値 (ms)。
    * Transport.svelte でさらに周波数依存の YIN 遅延補正 (3.0周期分) が加算されます。
-   * E2Eテスト環境では、1音目の検知時に動的にキャリブレーションされます。
    */
   latencyCompensationMs: number;
 }>({
@@ -140,9 +139,8 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
     }
     
     const acWithSink = audioState.audioCtx as unknown as AudioContextWithSink;
-    const isE2E = typeof window !== 'undefined' && (window as any).__E2E__;
 
-    if (!isE2E && audioState.selectedOutputId && typeof acWithSink.setSinkId === 'function') {
+    if (audioState.selectedOutputId && typeof acWithSink.setSinkId === 'function') {
       try {
         await acWithSink.setSinkId(audioState.selectedOutputId);
         await new Promise(r => setTimeout(r, 200));
@@ -166,11 +164,7 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
     audioState.micGranted = true;
     audioState.micError = null;
 
-    // E2Eテスト環境（Playwright/Chromium）では enumerateDevices がハングすることがあるため、
-    // E2Eモード以外の場合のみデバイス一覧を更新します。
-    if (!isE2E) {
-      await updateDevices();
-    }
+    await updateDevices();
     const track = stream.getAudioTracks()[0];
     if (track) {
       const settings = track.getSettings();
