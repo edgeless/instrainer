@@ -1,5 +1,6 @@
 <script lang="ts">
   import { playerState, getOriginalBeats, getDisplayBeat } from '$lib/stores/player.svelte';
+  import { scoreState } from '$lib/stores/score.svelte';
   
   let viewMode = $state('both');
 
@@ -16,6 +17,13 @@
     'C2': 12, 'D2': 11, 'E2': 10, 'F2': 9,  'G2': 8,  'A2': 7,  'B2': 6,
     'C3': 5,  'D3': 4,  'E3': 3,  'F3': 2,  'G3': 1,  'A3': 0,  'B3': -1,
     'C4': -2, 'D4': -3, 'E4': -4
+  };
+
+  const GRADE_COLORS: Record<string, string> = {
+    perfect: 'var(--accent2)',
+    good: 'var(--accent)',
+    ok: 'var(--warn)',
+    miss: 'var(--danger)'
   };
 
   function getNoteY(noteName: string, topY: number, lineSpacing: number) {
@@ -283,6 +291,40 @@
   const STRINGS = ['G', 'D', 'A', 'E'];
 </script>
 
+{#snippet noteBody(nx: number, alpha: number, col: string, y: number, isOpen: boolean, hasStem: boolean, stemDir: number, noteName: string, flagCount: number, isDotted: boolean)}
+  {#if isOpen}
+    <ellipse cx="{nx}" cy="{y}" rx="5.5" ry="4" fill="none" stroke="{col}" stroke-width="1.5" transform="rotate(-15 {nx} {y})" opacity="{alpha}"/>
+  {:else}
+    <ellipse cx="{nx}" cy="{y}" rx="5.5" ry="4" fill="{col}" transform="rotate(-15 {nx} {y})" opacity="{alpha}"/>
+  {/if}
+
+  {@const stemX = stemDir === 1 ? nx - 5 : nx + 5}
+  {@const stemEndY = y + stemDir * 28}
+  {#if hasStem}
+    <line x1="{stemX}" y1="{y}" x2="{stemX}" y2="{stemEndY}" stroke="{col}" stroke-width="1.5" opacity="{alpha}"/>
+  {/if}
+
+  {#if noteName.includes('#')}
+    <text x="{nx - 20}" y="{y + 5}" font-size="16" fill="{col}" font-family="serif" opacity="{alpha}">♯</text>
+  {:else if noteName.includes('b')}
+    <text x="{nx - 20}" y="{y + 4}" font-size="16" fill="{col}" font-family="serif" opacity="{alpha}">♭</text>
+  {/if}
+
+  {#if flagCount >= 1 && hasStem}
+    {@const d = -stemDir}
+    {@const bx = stemX}
+    {@const by = stemEndY}
+    <path d="M {bx} {by} c 1 {d*3}, 8 {d*6}, 10 {d*14} c -1 {d*-2}, -6 {d*-6}, -10 {d*-8} Z" fill="{col}" opacity="{alpha}"/>
+    {#if flagCount >= 2}
+      {@const by2 = by - d * 6}
+      <path d="M {bx} {by2} c 1 {d*3}, 8 {d*6}, 10 {d*14} c -1 {d*-2}, -6 {d*-6}, -10 {d*-8} Z" fill="{col}" opacity="{alpha}"/>
+    {/if}
+  {/if}
+  {#if isDotted}
+    <circle cx="{nx + 9}" cy="{y - 2}" r="1.5" fill="{col}" opacity="{alpha}"/>
+  {/if}
+{/snippet}
+
 <section class="score-section">
   <div class="sec-hdr">
     SCORE — Measure {Math.floor((playerState.song.notes[playerState.currentNoteIdx]?.beat || 0) / beatsPerMeasure) + 1}
@@ -346,7 +388,15 @@
                   {@const x = layout.elPositions[elIdx]}
                   {@const y = getNoteY(note.name, staffTop, lineSpacing)}
                   {@const noteState = getNoteState(i)}
-                  {@const col = NOTE_COLORS[noteState]}
+                  
+                  {@const result = noteState === 'played' ? scoreState.noteResults[i] : null}
+                  {@const col = (result?.grade && GRADE_COLORS[result.grade]) || NOTE_COLORS[noteState]}
+                  
+                  {@const timingShift = (result && result.timingDiffMs !== null && result.timingDiffMs !== undefined && result.grade !== 'miss') 
+                    ? Math.max(-12, Math.min(12, result.timingDiffMs / 15)) 
+                    : (result?.grade === 'miss' && result.timingDiffMs === 200 ? 12 : 0)}
+                  {@const hasGhost = Math.abs(timingShift) > 1}
+                  {@const ghostX = x + timingShift}
 
                   {#each getLedgerLines(y, x, col) as ll}
                     <line x1="{ll.x1}" y1="{ll.y1}" x2="{ll.x2}" y2="{ll.y2}" stroke="{ll.stroke}" stroke-width="1"/>
@@ -359,43 +409,17 @@
                   {@const hasStem = !isWhole}
                   {@const isDotted = dur === 0.75 || dur === 1.5 || dur === 3}
                   {@const flagCount = dur <= 0.25 ? 2 : dur <= 0.5 ? 1 : dur <= 0.75 ? 1 : 0}
-
-                  {#if isOpen}
-                    <ellipse cx="{x}" cy="{y}" rx="5.5" ry="4" fill="none" stroke="{col}" stroke-width="1.5" transform="rotate(-15 {x} {y})"/>
-                  {:else}
-                    <ellipse cx="{x}" cy="{y}" rx="5.5" ry="4" fill="{col}" transform="rotate(-15 {x} {y})"/>
-                  {/if}
-
                   {@const stemDir = y > staffTop + staffH / 2 ? -1 : 1}
-                  {@const stemX = stemDir === 1 ? x - 5 : x + 5}
-                  {@const stemEndY = y + stemDir * 28}
-                  {#if hasStem}
-                    <line x1="{stemX}" y1="{y}" x2="{stemX}" y2="{stemEndY}" stroke="{col}" stroke-width="1.5"/>
-                  {/if}
 
-                  {#if note.name.includes('#')}
-                    <text x="{x - 20}" y="{y + 5}" font-size="16" fill="{col}" font-family="serif">♯</text>
-                  {:else if note.name.includes('b')}
-                    <text x="{x - 20}" y="{y + 4}" font-size="16" fill="{col}" font-family="serif">♭</text>
-                  {/if}
-
-                  {#if flagCount >= 1 && hasStem}
-                    {@const d = -stemDir}
-                    {@const bx = stemX}
-                    {@const by = stemEndY}
-                    <path d="M {bx} {by} c 1 {d*3}, 8 {d*6}, 10 {d*14} c -1 {d*-2}, -6 {d*-6}, -10 {d*-8} Z" fill="{col}"/>
-                    {#if flagCount >= 2}
-                      {@const by2 = by - d * 6}
-                      <path d="M {bx} {by2} c 1 {d*3}, 8 {d*6}, 10 {d*14} c -1 {d*-2}, -6 {d*-6}, -10 {d*-8} Z" fill="{col}"/>
-                    {/if}
-                  {/if}
-
-                  {#if isDotted}
-                    <circle cx="{x + 9}" cy="{y - 2}" r="1.5" fill="{col}"/>
+                  {#if hasGhost}
+                    {@render noteBody(x, 0.3, col, y, isOpen, hasStem, stemDir, note.name, flagCount, isDotted)}
+                    {@render noteBody(ghostX, 1.0, col, y, isOpen, hasStem, stemDir, note.name, flagCount, isDotted)}
+                  {:else}
+                    {@render noteBody(x, 1.0, col, y, isOpen, hasStem, stemDir, note.name, flagCount, isDotted)}
                   {/if}
 
                   {#if noteState !== 'upcoming'}
-                    <text x="{x}" y="{rowH - 6}" text-anchor="middle" font-size="8" fill="{col}" font-family="'Space Mono',monospace">{note.name.replace(/\d+$/, '')}</text>
+                    <text x="{hasGhost ? ghostX : x}" y="{rowH - 6}" text-anchor="middle" font-size="8" fill="{col}" font-family="'Space Mono',monospace">{note.name.replace(/\d+$/, '')}</text>
                   {/if}
                   {#if noteState === 'current'}
                     <circle cx="{x}" cy="{y}" r="11" fill="none" stroke="{col}" stroke-width="1.5" opacity="0.4"/>
@@ -436,13 +460,29 @@
                     {@const sidx = STRINGS.indexOf(note.string)}
                     {#if sidx !== -1}
                       {@const y = 20 + sidx * 20}
-                      {@const stateClass = i < playerState.currentNoteIdx ? 'tc-played' : i === playerState.currentNoteIdx ? 'tc-current' : ''}
+                      {@const noteState = getNoteState(i)}
+                      
+                      {@const result = noteState === 'played' ? scoreState.noteResults[i] : null}
+                      {@const gradeClass = result?.grade ? `tc-played-${result.grade}` : ''}
+                      {@const stateClass = (noteState === 'played' ? 'tc-played' : noteState === 'current' ? 'tc-current' : '') + ' ' + gradeClass}
+                      
+                      {@const timingShift = (result && result.timingDiffMs !== null && result.timingDiffMs !== undefined && result.grade !== 'miss') 
+                        ? Math.max(-12, Math.min(12, result.timingDiffMs / 15)) 
+                        : (result?.grade === 'miss' && result.timingDiffMs === 200 ? 12 : 0)}
+                      {@const hasGhost = Math.abs(timingShift) > 1}
+                      {@const ghostX = x + timingShift}
+
                       {@const [timeSigNum] = playerState.song.timeSignature ?? [4, 4]}
                       {@const beatNum = (note.beat % timeSigNum) + 1}
                       {@const beatCol = i === playerState.currentNoteIdx ? 'var(--accent)' : 'var(--muted)'}
 
-                      <div class="tab-note-val {stateClass}" style="left:{x-8}px;top:{y+1}px;width:16px;">{note.fret}</div>
-                      <div style="position:absolute;top:104px;left:{x-10}px;width:20px;text-align:center;font-size:8px;color:{beatCol};font-family:'Space Mono',monospace;">{beatNum}</div>
+                      {#if hasGhost}
+                        <div class="tab-note-val {stateClass}" style="left:{x-8}px;top:{y+1}px;width:16px;opacity:0.3;">{note.fret}</div>
+                        <div class="tab-note-val {stateClass}" style="left:{ghostX-8}px;top:{y+1}px;width:16px;">{note.fret}</div>
+                      {:else}
+                        <div class="tab-note-val {stateClass}" style="left:{x-8}px;top:{y+1}px;width:16px;">{note.fret}</div>
+                      {/if}
+                      <div style="position:absolute;top:104px;left:{(hasGhost ? ghostX : x)-10}px;width:20px;text-align:center;font-size:8px;color:{beatCol};font-family:'Space Mono',monospace;">{beatNum}</div>
                     {/if}
                   {/if}
                 {/each}
@@ -543,6 +583,10 @@
   z-index: 2;
 }
 .tab-note-val.tc-played { color: rgba(58,245,160,0.7); }
+.tab-note-val.tc-played-perfect { color: var(--accent2); }
+.tab-note-val.tc-played-good { color: var(--accent); }
+.tab-note-val.tc-played-ok { color: var(--warn); }
+.tab-note-val.tc-played-miss { color: var(--danger); }
 .tab-note-val.tc-current {
   color: var(--accent); font-weight: 700; 
   text-shadow: 0 0 8px var(--accent);
