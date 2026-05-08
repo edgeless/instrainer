@@ -129,6 +129,9 @@ describe('Beat and Duration Calculations', () => {
       { name: 'C2', midi: 36, string: 'A', fret: 3, beat: 0, dur: 4 }
     ];
     // Original beats = 4
+    playerState.repeatCount = 1;
+    assert.strictEqual(getTotalBeats(), 4);
+    
     playerState.repeatCount = 3;
     assert.strictEqual(getTotalBeats(), 12);
   });
