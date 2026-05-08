@@ -102,6 +102,10 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
     };
     let stream: MediaStream;
 
+    if (!navigator.mediaDevices) {
+      throw new Error("ブラウザのセキュリティ制限によりマイクにアクセスできません。HTTPS接続または localhost でアクセスしているか確認してください。");
+    }
+
     try {
       stream = await navigator.mediaDevices.getUserMedia(constraints);
     } catch (e) {
