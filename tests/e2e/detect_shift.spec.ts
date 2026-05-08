@@ -28,7 +28,6 @@ test('detect windows pitch shift', async ({ browser }) => {
     
     await page.evaluate(async () => {
       const { requestMic } = (window as any).__states;
-      (window as any).__E2E__ = true;
       await requestMic();
     });
 
