@@ -39,7 +39,7 @@
       const freq = detectPitch(audioState.analyserNode, audioState.pitchBuf, audioState.audioCtx.sampleRate);
       detectedFreq = freq;
       scoreState.detectedFreq = freq;
-      if (playerState.isRecording && freq > 0 && playerState.currentBeat >= 0) {
+      if (playerState.isRecording && freq > 0 && playerState.currentBeat >= -0.5) {
         // スライド検知
         let sliding = false;
         if (prevFreq > 0 && freq > 0) {

@@ -31,6 +31,7 @@ export const audioState = $state<{
   selectedOutputId: string;
   recordedAudioUrl: string | null;
   masterVolume: number;
+  latencyCompensationMs: number;
 }>({
   audioCtx: null,
   analyserNode: null,
@@ -43,7 +44,8 @@ export const audioState = $state<{
   selectedInputId: loadSavedDeviceId(STORAGE_KEY_INPUT),
   selectedOutputId: loadSavedDeviceId(STORAGE_KEY_OUTPUT),
   recordedAudioUrl: null,
-  masterVolume: Number(loadSavedDeviceId(STORAGE_KEY_VOLUME) || '1')
+  masterVolume: Number(loadSavedDeviceId(STORAGE_KEY_VOLUME) || '1'),
+  latencyCompensationMs: 250
 });
 
 export function setMasterVolume(vol: number) {
@@ -53,10 +55,10 @@ export function setMasterVolume(vol: number) {
 
 export async function requestMic(deviceIdOrEvent?: string | Event) {
   let deviceId = typeof deviceIdOrEvent === 'string' ? deviceIdOrEvent : undefined;
-  // If no explicit deviceId provided, try to use the saved one
   if (!deviceId && audioState.selectedInputId) {
     deviceId = audioState.selectedInputId;
   }
+
   try {
     if (audioState.micStream) {
       audioState.micStream.getTracks().forEach(track => track.stop());
@@ -73,10 +75,10 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
       }
     };
     let stream: MediaStream;
+
     try {
       stream = await navigator.mediaDevices.getUserMedia(constraints);
     } catch (e) {
-      // If the saved device is no longer available, fallback to default
       if (deviceId) {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
@@ -88,16 +90,44 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
     audioState.micStream = stream;
 
     if (!audioState.audioCtx) {
-      audioState.audioCtx = new window.AudioContext({ sampleRate: 44100 });
+      // Voicemeeter等の環境下でサンプリングレートの不一致によるレンダラクラッシュを防ぐため、
+      // 原則として sampleRate はOS既定値に委ねる（指定しない）。
+      audioState.audioCtx = new window.AudioContext();
+
       audioState.analyserNode = audioState.audioCtx.createAnalyser();
-      audioState.analyserNode.fftSize = 2048;
+      audioState.analyserNode.fftSize = 4096;
       audioState.analyserNode.smoothingTimeConstant = 0.1;
       audioState.pitchBuf = new Float32Array(audioState.analyserNode.fftSize);
+    } else {
+      if (audioState.audioCtx.state === 'suspended') {
+        await audioState.audioCtx.resume();
+      }
     }
     
     const acWithSink = audioState.audioCtx as unknown as AudioContextWithSink;
     if (audioState.selectedOutputId && typeof acWithSink.setSinkId === 'function') {
-      try { await acWithSink.setSinkId(audioState.selectedOutputId); } catch(e) {}
+      try {
+        await acWithSink.setSinkId(audioState.selectedOutputId);
+        
+        // 非同期クラッシュチェック
+        await new Promise(r => setTimeout(r, 200));
+        if (audioState.audioCtx.state === 'suspended' || audioState.audioCtx.state === 'closed') {
+          throw new Error("Renderer crashed");
+        }
+      } catch(e) {
+        console.warn("setSinkId failed:", e);
+        audioState.selectedOutputId = '';
+        saveDeviceId(STORAGE_KEY_OUTPUT, '');
+        if (typeof window !== 'undefined') {
+          window.alert("前回選択した出力デバイスの復元に失敗しました（クラッシュ検知）。OS標準の出力にリセットします。");
+        }
+        // クラッシュしたContextを一度破棄し、すぐに作り直す
+        try { await audioState.audioCtx.close(); } catch(err) {}
+        audioState.audioCtx = new window.AudioContext();
+        audioState.analyserNode = audioState.audioCtx.createAnalyser();
+        audioState.analyserNode.fftSize = 4096;
+        audioState.pitchBuf = new Float32Array(audioState.analyserNode.fftSize);
+      }
     }
     
     audioState.micSource = audioState.audioCtx.createMediaStreamSource(stream);
@@ -132,8 +162,26 @@ export async function setOutputDevice(deviceId: string) {
   const acWithSink = audioState.audioCtx as unknown as AudioContextWithSink;
   if (!acWithSink) return;
   if (typeof acWithSink.setSinkId === 'function') {
-    try { await acWithSink.setSinkId(deviceId); } catch (e) {
+    try { 
+      await acWithSink.setSinkId(deviceId); 
+      // 非同期クラッシュをチェック
+      await new Promise(r => setTimeout(r, 200));
+      if (audioState.audioCtx?.state === 'suspended' || audioState.audioCtx?.state === 'closed') {
+        throw new Error("Renderer crashed");
+      }
+    } catch (e) {
       console.warn("setSinkId error", e);
+      audioState.selectedOutputId = '';
+      saveDeviceId(STORAGE_KEY_OUTPUT, '');
+      if (typeof window !== 'undefined') {
+        window.alert("出力デバイスの変更に失敗したため、OS標準の出力にリセットしました。\n(※仮想オーディオデバイスなどで発生しやすいChromiumの既知の問題です)");
+      }
+      try { await acWithSink.setSinkId(''); } catch (err) {}
+      
+      // 完全にクラッシュした場合はコンテキストを閉じ、次回の再生等で再生成させる
+      if (audioState.audioCtx?.state === 'suspended' || audioState.audioCtx?.state === 'closed') {
+        try { await audioState.audioCtx.close(); } catch(err) {}
+      }
     }
   }
 }
