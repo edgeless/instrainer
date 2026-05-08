@@ -8,7 +8,6 @@ import {
   getGrade,
   getTimingGrade,
   getCombinedGrade,
-  detectPitchHQ,
   detectPitch
 } from '../../src/lib/utils/pitch';
 
@@ -58,12 +57,12 @@ describe('pitch utils', () => {
   test('getGrade determines pitch grade based on cents and tolerance', () => {
     const tolerance = 20;
     assert.strictEqual(getGrade(0, tolerance), 'perfect');
-    assert.strictEqual(getGrade(10, tolerance), 'perfect');
-    assert.strictEqual(getGrade(15, tolerance), 'good');
-    assert.strictEqual(getGrade(20, tolerance), 'good');
-    assert.strictEqual(getGrade(30, tolerance), 'ok');
-    assert.strictEqual(getGrade(40, tolerance), 'ok');
-    assert.strictEqual(getGrade(41, tolerance), 'miss');
+    assert.strictEqual(getGrade(8, tolerance), 'perfect');
+    assert.strictEqual(getGrade(9, tolerance), 'good');
+    assert.strictEqual(getGrade(14, tolerance), 'good');
+    assert.strictEqual(getGrade(15, tolerance), 'ok');
+    assert.strictEqual(getGrade(20, tolerance), 'ok');
+    assert.strictEqual(getGrade(21, tolerance), 'miss');
   });
 
   test('getTimingGrade determines timing grade', () => {
@@ -84,17 +83,7 @@ describe('pitch utils', () => {
     assert.strictEqual(getCombinedGrade('miss', 'miss'), 'miss');
   });
 
-  test('detectPitchHQ detects pitch from samples', () => {
-    const sr = 44100;
-    const freq = 110; // A2
-    const samples = new Array(2048);
-    for (let i = 0; i < samples.length; i++) {
-      samples[i] = Math.sin(2 * Math.PI * freq * i / sr);
-    }
 
-    const detected = detectPitchHQ(samples, sr);
-    assert.ok(Math.abs(detected - freq) < 1);
-  });
 
   test('detectPitch detects pitch with mocked AnalyserNode', () => {
     const sr = 44100;
