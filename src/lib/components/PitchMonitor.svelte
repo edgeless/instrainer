@@ -36,13 +36,7 @@
     
     // Pitch Detection
     if (audioState.analyserNode && audioState.pitchBuf && audioState.audioCtx) {
-      const freq = detectPitch(
-        audioState.analyserNode, 
-        audioState.pitchBuf, 
-        audioState.audioCtx.sampleRate,
-        audioState.diffBuf || undefined,
-        audioState.cmndBuf || undefined
-      );
+      const freq = detectPitch(audioState.analyserNode, audioState.pitchBuf, audioState.audioCtx.sampleRate);
       detectedFreq = freq;
       scoreState.detectedFreq = freq;
       if (playerState.isRecording && freq > 0 && playerState.currentBeat >= -0.5) {
@@ -50,7 +44,7 @@
         let sliding = false;
         if (prevFreq > 0 && freq > 0) {
           const diffCents = freqToCents(freq, prevFreq);
-          if (diffCents !== null && Math.abs(diffCents) > 50) {
+          if (diffCents !== null && Math.abs(diffCents) > 25) {
             sliding = true;
             console.debug(`[Slide] Speed: ${Math.round(diffCents)}c/frame`);
           }
