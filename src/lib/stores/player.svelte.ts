@@ -24,7 +24,7 @@ let initialImported: Song | null = null;
 let initialSongKey = 'c_major';
 let initialBpm: number | null = null;
 let initialRepeatCount = 1;
-let initialTolerance = 20;
+let initialTolerance = 15;
 
 if (browser) {
   const saved = localStorage.getItem('imported_song');

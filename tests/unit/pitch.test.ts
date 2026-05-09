@@ -57,12 +57,12 @@ describe('pitch utils', () => {
   test('getGrade determines pitch grade based on cents and tolerance', () => {
     const tolerance = 20;
     assert.strictEqual(getGrade(0, tolerance), 'perfect');
-    assert.strictEqual(getGrade(10, tolerance), 'perfect');
-    assert.strictEqual(getGrade(15, tolerance), 'good');
-    assert.strictEqual(getGrade(20, tolerance), 'good');
-    assert.strictEqual(getGrade(30, tolerance), 'ok');
-    assert.strictEqual(getGrade(40, tolerance), 'ok');
-    assert.strictEqual(getGrade(41, tolerance), 'miss');
+    assert.strictEqual(getGrade(8, tolerance), 'perfect');
+    assert.strictEqual(getGrade(9, tolerance), 'good');
+    assert.strictEqual(getGrade(14, tolerance), 'good');
+    assert.strictEqual(getGrade(15, tolerance), 'ok');
+    assert.strictEqual(getGrade(20, tolerance), 'ok');
+    assert.strictEqual(getGrade(21, tolerance), 'miss');
   });
 
   test('getTimingGrade determines timing grade', () => {
