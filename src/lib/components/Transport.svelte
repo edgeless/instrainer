@@ -290,26 +290,46 @@
     const history = scoreState.currentCentsHistory;
     if (history.length === 0) return;
 
-    let validHistory = history.filter(h => h.freq > 0 && !h.isSliding);
-    const totalHistory = history.filter(h => h.freq > 0);
+    const validHistory: typeof history = [];
+    const slidingHistory: typeof history = [];
 
-    if (validHistory.length === 0 && totalHistory.length > 0) {
-      console.warn("[Free] All samples were marked as sliding. Falling back to all samples.");
-      validHistory = totalHistory;
+    for (let i = 0; i < history.length; i++) {
+      const h = history[i];
+      if (h.freq > 0) {
+        if (h.isSliding) {
+          slidingHistory.push(h);
+        } else {
+          validHistory.push(h);
+        }
+      }
     }
 
-    const excludedCount = history.filter(h => h.freq > 0).length - validHistory.length;
+    let targetHistory = validHistory;
+    let excludedCount = slidingHistory.length;
 
-    const allCents = validHistory.reduce((acc, h) => {
+    if (validHistory.length === 0 && slidingHistory.length > 0) {
+      targetHistory = slidingHistory;
+      excludedCount = 0;
+    }
+
+    let totalCents = 0;
+    let inToleranceCount = 0;
+    let sampleCount = 0;
+
+    for (let i = 0; i < targetHistory.length; i++) {
+      const h = targetHistory[i];
       const targetF = midiToFreq(freqToMidi(h.freq));
       const c = freqToCents(h.freq, targetF);
       if (c !== null) {
-        acc.push(c);
+        totalCents += c;
+        sampleCount++;
+        if (Math.abs(c) <= playerState.tolerance) {
+          inToleranceCount++;
+        }
       }
-      return acc;
-    }, [] as number[]);
+    }
 
-    if (allCents.length === 0) {
+    if (sampleCount === 0) {
       scoreState.freeModeStats = {
         avgDev: null,
         stability: null,
@@ -319,19 +339,10 @@
       return;
     }
 
-    const avg = allCents.reduce((a, b) => a + b, 0) / allCents.length;
-    let inToleranceCount = 0;
-
-    allCents.forEach(c => {
-      if (Math.abs(c) <= playerState.tolerance) {
-        inToleranceCount++;
-      }
-    });
-
     scoreState.freeModeStats = {
-      avgDev: avg,
-      stability: inToleranceCount / allCents.length,
-      sampleCount: allCents.length,
+      avgDev: totalCents / sampleCount,
+      stability: inToleranceCount / sampleCount,
+      sampleCount: sampleCount,
       excludedSamples: excludedCount
     };
   }
