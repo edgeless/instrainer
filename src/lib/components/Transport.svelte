@@ -616,7 +616,7 @@
     playerState.status = 'rec';
 
     // 音声の録音設定
-    if (audioState.micStream) {
+    if (audioState.micSource) {
       // 以前の録音URLがあれば破棄
       if (audioState.recordedAudioUrl) {
         URL.revokeObjectURL(audioState.recordedAudioUrl);
@@ -624,7 +624,11 @@
       }
       recordedChunks = [];
       try {
-        mediaRecorder = new MediaRecorder(audioState.micStream);
+        // audioState.micSource からストリームを取り出して録音する
+        const dest = audioState.audioCtx.createMediaStreamDestination();
+        audioState.micSource.connect(dest);
+        
+        mediaRecorder = new MediaRecorder(dest.stream);
         mediaRecorder.ondataavailable = (e) => {
           if (e.data.size > 0) recordedChunks.push(e.data);
         };
@@ -632,6 +636,7 @@
           recordStopResolver = resolve;
         });
         mediaRecorder.onstop = () => {
+          try { audioState.micSource?.disconnect(dest); } catch (e) {}
           const mimeType = mediaRecorder?.mimeType || 'audio/webm';
           const blob = new Blob(recordedChunks, { type: mimeType });
           audioState.recordedAudioUrl = URL.createObjectURL(blob);
