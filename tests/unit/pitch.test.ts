@@ -83,8 +83,6 @@ describe('pitch utils', () => {
     assert.strictEqual(getCombinedGrade('miss', 'miss'), 'miss');
   });
 
-
-
   test('detectPitch detects pitch with mocked AnalyserNode', () => {
     const sr = 44100;
     const freq = 220; // A3
