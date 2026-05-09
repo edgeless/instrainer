@@ -26,7 +26,7 @@ const config = {
 				'font-src': ['self', 'https://fonts.gstatic.com'],
 				'img-src': ['self', 'data:'],
 				'media-src': ['self', 'blob:'],
-				'connect-src': ['self'],
+				'connect-src': ['self', 'blob:'],
 				'object-src': ['none'],
 				'base-uri': ['self']
 			}
