@@ -98,6 +98,36 @@ export function freqToMidi(freq: number): number {
   return Math.round(69 + 12 * Math.log2(freq / 440));
 }
 
+export function keyToDroneFreq(key: string | undefined): number | null {
+  if (!key) return null;
+
+  // キー文字列からルート音を抽出（例: "C-7" -> "C", "Eb" -> "Eb", "F#" -> "F#"）
+  const match = key.match(/^[A-G][#b]?/);
+  if (!match) return null;
+  const rootNote = match[0];
+
+  // C1 (MIDI 24) をベースとする（ドローン音は低めに設定）
+  const noteOffsets: Record<string, number> = {
+    'C': 0, 'C#': 1, 'Db': 1,
+    'D': 2, 'D#': 3, 'Eb': 3,
+    'E': 4,
+    'F': 5, 'F#': 6, 'Gb': 6,
+    'G': 7, 'G#': 8, 'Ab': 8,
+    'A': 9, 'A#': 10, 'Bb': 10,
+    'B': 11
+  };
+
+  const offset = noteOffsets[rootNote];
+  if (offset === undefined) return null;
+
+  // C2 (MIDI 36) ～ B2 (MIDI 47) をドローン音の基準オクターブとする
+  // (C1の32Hz付近はスマホ等のスピーカーで聞こえづらいため)
+  const baseMidi = 36;
+  const droneMidi = baseMidi + offset;
+
+  return midiToFreq(droneMidi);
+}
+
 export function midiToNoteName(midi: number): string {
   if (midi < 0) return '—';
   const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];

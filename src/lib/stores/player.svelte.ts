@@ -10,6 +10,7 @@ interface PlayerState {
   isRecording: boolean;
   tolerance: number;
   metronomeOn: boolean;
+  droneOn: boolean;
   status: 'idle' | 'play' | 'rec';
   repeatCount: number;
   currentLoop: number;
@@ -90,6 +91,7 @@ export const playerState = $state<PlayerState>({
   isRecording: false,
   tolerance: initialTolerance, // cents
   metronomeOn: false,
+  droneOn: false,
   status: 'idle',
   repeatCount: initialRepeatCount,
   currentLoop: 1,
