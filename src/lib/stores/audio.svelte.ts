@@ -237,6 +237,55 @@ export function playClick(accent: boolean) {
 }
 
 // 進行中のデモ用オシレーターを管理するリスト
+let activeDroneOscillator: OscillatorNode | null = null;
+let activeDroneGain: GainNode | null = null;
+
+export function startDrone(freq: number) {
+  const ac = audioState.audioCtx;
+  if (!ac) return;
+
+  stopDrone(); // 既存のドローン音があれば停止
+
+  const osc = ac.createOscillator();
+  const gain = ac.createGain();
+
+  osc.type = 'sine'; // サイン波
+  osc.frequency.value = freq;
+
+  osc.connect(gain);
+  gain.connect(ac.destination);
+
+  // 少しずつフェードインして柔らかく鳴らす
+  const time = ac.currentTime;
+  const maxGain = 0.2 * audioState.masterVolume;
+
+  gain.gain.setValueAtTime(0, time);
+  gain.gain.linearRampToValueAtTime(maxGain, time + 0.5);
+
+  osc.start(time);
+
+  activeDroneOscillator = osc;
+  activeDroneGain = gain;
+}
+
+export function stopDrone() {
+  if (activeDroneOscillator && activeDroneGain) {
+    const ac = audioState.audioCtx;
+    if (ac) {
+      const time = ac.currentTime;
+      // フェードアウト
+      activeDroneGain.gain.cancelScheduledValues(time);
+      activeDroneGain.gain.setValueAtTime(activeDroneGain.gain.value, time);
+      activeDroneGain.gain.linearRampToValueAtTime(0.001, time + 0.3);
+      activeDroneOscillator.stop(time + 0.35);
+    } else {
+      activeDroneOscillator.stop();
+    }
+    activeDroneOscillator = null;
+    activeDroneGain = null;
+  }
+}
+
 export const activeDemoOscillators: OscillatorNode[] = [];
 
 export function stopDemoNotes() {

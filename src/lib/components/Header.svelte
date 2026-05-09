@@ -1,8 +1,9 @@
 <script lang="ts">
   import { playerState, setSong } from '$lib/stores/player.svelte';
-  import { audioState, requestMic, setOutputDevice } from '$lib/stores/audio.svelte';
+  import { audioState, requestMic, setOutputDevice, startDrone, stopDrone } from '$lib/stores/audio.svelte';
   import { SONGS } from '$lib/utils/songs';
   import { parseIRealURI } from '$lib/utils/ireal';
+  import { keyToDroneFreq } from '$lib/utils/pitch';
   import type Transport from './Transport.svelte';
 
   let { transportRef } = $props<{ transportRef: ReturnType<typeof Transport> | undefined }>();
@@ -14,6 +15,19 @@
 
   function toggleMetronome() {
     playerState.metronomeOn = !playerState.metronomeOn;
+  }
+
+  function toggleDrone() {
+    playerState.droneOn = !playerState.droneOn;
+    // 再生・録音中にドローンが切り替えられた場合は即座に反映する
+    if (playerState.isPlaying || playerState.isRecording) {
+      if (playerState.droneOn && playerState.song.key) {
+        const freq = keyToDroneFreq(playerState.song.key);
+        if (freq) startDrone(freq);
+      } else {
+        stopDrone();
+      }
+    }
   }
 
   function onInputDeviceChange(e: Event) {
@@ -62,6 +76,7 @@
       importError: isJa ? "URLの解析に失敗しました。正しいURLか確認してください。" : "Failed to parse the URL. Please make sure it's a valid iReal Pro URL.",
       scrollHint: isJa ? "スクロールで変更" : "Scroll to change",
       clickBtn: isJa ? "♩ メトロノーム" : "♩ CLICK",
+      droneBtn: isJa ? "🎶 ドローン音" : "🎶 DRONE",
       inputDev: isJa ? "入力デバイス" : "Input Device",
       outputDev: isJa ? "出力デバイス" : "Output Device",
       repeat: isJa ? "リピート" : "Repeat",
@@ -138,6 +153,12 @@
       disabled={playerState.status !== 'idle'}
     >
       {i18n.freeMode}
+    </button>
+    <button
+      class="btn-sm {playerState.droneOn ? 'active' : ''}"
+      onclick={toggleDrone}
+    >
+      {i18n.droneBtn}
     </button>
     <button 
       class="btn-sm {playerState.metronomeOn ? 'active' : ''}" 

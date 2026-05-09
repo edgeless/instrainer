@@ -2,8 +2,8 @@
   import { onDestroy } from 'svelte';
   import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds, getDisplayBeat, getCountInBeats } from '$lib/stores/player.svelte';
   import { scoreState, resetScore } from '$lib/stores/score.svelte';
-  import { audioState, playClick, playDemoNote, stopDemoNotes, setMasterVolume } from '$lib/stores/audio.svelte';
-  import { midiToFreq, freqToCents, freqToMidi, getGrade, getTimingGrade, getCombinedGrade } from '$lib/utils/pitch';
+  import { audioState, playClick, playDemoNote, stopDemoNotes, setMasterVolume, startDrone, stopDrone } from '$lib/stores/audio.svelte';
+  import { midiToFreq, freqToCents, freqToMidi, getGrade, getTimingGrade, getCombinedGrade, keyToDroneFreq } from '$lib/utils/pitch';
 
   let beatInterval: any = null;
 
@@ -478,6 +478,11 @@
     playerState.isPlaying = true;
     playerState.status = 'play';
 
+    if (playerState.droneOn && playerState.song.key) {
+      const freq = keyToDroneFreq(playerState.song.key);
+      if (freq) startDrone(freq);
+    }
+
     // Set playbackStartTimeMs based on currentBeat
     // Note: In startPlay, this value represents the theoretical start time of the song
     // calculated backwards from the current position. This is primarily used to drive
@@ -535,6 +540,7 @@
     if (beatInterval) clearTimeout(beatInterval);
     playerState.status = 'idle';
     stopDemoNotes();
+    stopDrone();
     if (playbackAudio) {
       playbackAudio.pause();
     }
@@ -546,6 +552,7 @@
     playerState.isDemoPlaying = false;
     if (beatInterval) clearTimeout(beatInterval);
     stopDemoNotes();
+    stopDrone();
     playerState.currentNoteIdx = 0;
     const countIn = getCountInBeats();
     playerState.currentBeat = -countIn;
@@ -615,6 +622,11 @@
     resetScore();
     playerState.status = 'rec';
 
+    if (playerState.droneOn && playerState.song.key) {
+      const freq = keyToDroneFreq(playerState.song.key);
+      if (freq) startDrone(freq);
+    }
+
     // 音声の録音設定
     if (audioState.micSource) {
       // 以前の録音URLがあれば破棄
@@ -681,6 +693,7 @@
     if (waitPromise) {
       await waitPromise;
     }
+    stopDrone();
 
     if (playerState.isFreeMode) {
       finalizeFreeModeSession();
