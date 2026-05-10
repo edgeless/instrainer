@@ -288,11 +288,14 @@
   }
 
   // Tab rendering constants
-  let currentStrings = $derived(
-    playerState.song.notes.some(n => n.midi < 28)
-      ? ['G', 'D', 'A', 'E', 'B']
-      : ['G', 'D', 'A', 'E']
-  );
+  let currentStrings = $derived.by(() => {
+    const hasC = playerState.song.notes.some(n => n.string === 'C');
+    const hasB = playerState.song.notes.some(n => n.string === 'B');
+    const strings = ['G', 'D', 'A', 'E'];
+    if (hasC) strings.unshift('C');
+    if (hasB) strings.push('B');
+    return strings;
+  });
 </script>
 
 {#snippet noteBody(nx: number, alpha: number, col: string, y: number, isOpen: boolean, hasStem: boolean, stemDir: number, noteName: string, flagCount: number, isDotted: boolean)}
