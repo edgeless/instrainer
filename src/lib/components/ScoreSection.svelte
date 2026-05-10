@@ -288,7 +288,11 @@
   }
 
   // Tab rendering constants
-  const STRINGS = ['G', 'D', 'A', 'E'];
+  let currentStrings = $derived(
+    playerState.song.notes.some(n => n.midi < 28)
+      ? ['G', 'D', 'A', 'E', 'B']
+      : ['G', 'D', 'A', 'E']
+  );
 </script>
 
 {#snippet noteBody(nx: number, alpha: number, col: string, y: number, isOpen: boolean, hasStem: boolean, stemDir: number, noteName: string, flagCount: number, isDotted: boolean)}
@@ -431,22 +435,22 @@
 
           {#if viewMode === 'tab' || viewMode === 'both'}
             <div class="tab-area-wrap {viewMode === 'both' ? 'tab-inrow' : ''}">
-              <div class="tab-row-container" style="width:{containerWidth}px;position:relative;height:120px;">
+              <div class="tab-row-container" style="width:{containerWidth}px;position:relative;height:{40 + currentStrings.length * 20}px;">
                 <!-- 弦の横線 (背景) -->
-                {#each STRINGS as str, sidx}
+                {#each currentStrings as str, sidx}
                   {@const y = 20 + sidx * 20}
                   <div class="tab-string-line" style="top:{y+10}px;left:10px;right:10px;"></div>
                   <span class="tab-sname" style="position:absolute;top:{y+4}px;left:4px;">{str}</span>
                 {/each}
 
                 <!-- 小節線 -->
-                <div class="tab-bar-line" style="left:{layout.startX-2}px;height:78px;top:20px;"></div>
-                <div class="tab-bar-line" style="left:{layout.endX}px;height:78px;top:20px;"></div>
+                <div class="tab-bar-line" style="left:{layout.startX-2}px;height:{-2 + currentStrings.length * 20}px;top:20px;"></div>
+                <div class="tab-bar-line" style="left:{layout.endX}px;height:{-2 + currentStrings.length * 20}px;top:20px;"></div>
 
                 {#each layout.elements as el, j}
                   {#if el.type === 'bar'}
                     {@const bx = layout.elPositions[j]}
-                    <div class="tab-bar-line" style="left:{bx}px;height:78px;top:20px;"></div>
+                    <div class="tab-bar-line" style="left:{bx}px;height:{-2 + currentStrings.length * 20}px;top:20px;"></div>
                     <span style="position:absolute;top:5px;left:{bx+3}px;font-size:7px;color:rgba(255,255,255,0.25);">{el.measureNum}</span>
                   {/if}
                 {/each}
@@ -457,7 +461,7 @@
                   {#if note.beat >= layout.rowStartBeat && note.beat < layout.rowEndBeat}
                     {@const elIdx = layout.elements.findIndex(el => el.type === 'note' && el.noteIdx === i)}
                     {@const x = layout.elPositions[elIdx]}
-                    {@const sidx = STRINGS.indexOf(note.string)}
+                    {@const sidx = currentStrings.indexOf(note.string)}
                     {#if sidx !== -1}
                       {@const y = 20 + sidx * 20}
                       {@const noteState = getNoteState(i)}
@@ -482,7 +486,7 @@
                       {:else}
                         <div class="tab-note-val {stateClass}" style="left:{x-8}px;top:{y+1}px;width:16px;">{note.fret}</div>
                       {/if}
-                      <div style="position:absolute;top:104px;left:{(hasGhost ? ghostX : x)-10}px;width:20px;text-align:center;font-size:8px;color:{beatCol};font-family:'Space Mono',monospace;">{beatNum}</div>
+                      <div style="position:absolute;top:{24 + currentStrings.length * 20}px;left:{(hasGhost ? ghostX : x)-10}px;width:20px;text-align:center;font-size:8px;color:{beatCol};font-family:'Space Mono',monospace;">{beatNum}</div>
                     {/if}
                   {/if}
                 {/each}
