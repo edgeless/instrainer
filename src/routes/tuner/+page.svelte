@@ -7,16 +7,19 @@
   import { onMount } from 'svelte';
 
   onMount(() => {
-    if (typeof window !== 'undefined') {
-      (window as any).__states = { audioState, playerState, scoreState, setSong, requestMic };
-    }
+    (window as any).__states = { audioState, playerState, scoreState, setSong, requestMic };
   });
 </script>
+
+<svelte:head>
+  <title>Tuner - Fretless Bass Trainer</title>
+  <meta name="description" content="A simple, full-screen pitch monitor and tuner for bass." />
+</svelte:head>
 
 <MicPermission />
 
 <main class="tuner-container">
-  <PitchMonitor />
+  <PitchMonitor class="tuner-full" />
 </main>
 
 <style>
@@ -28,10 +31,11 @@
     position: relative;
     z-index: 1;
     overflow: hidden;
+    background-color: var(--bg);
   }
 
-  :global(.tuner-container > .pitch-panel) {
-    flex: 1;
-    border: none; /* 全画面の場合は不要な境界線を消す */
+  :global(.tuner-full) {
+    flex: 1 !important;
+    border: none !important; /* 全画面の場合は不要な境界線を消す */
   }
 </style>

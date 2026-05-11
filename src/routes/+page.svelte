@@ -16,9 +16,7 @@
   let transportRef: ReturnType<typeof Transport> | undefined = $state(undefined);
 
   onMount(() => {
-    if (typeof window !== 'undefined') {
-      (window as any).__states = { audioState, playerState, scoreState, setSong, requestMic };
-    }
+    (window as any).__states = { audioState, playerState, scoreState, setSong, requestMic };
   });
 </script>
 
