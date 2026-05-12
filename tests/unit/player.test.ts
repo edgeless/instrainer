@@ -5,7 +5,8 @@ import {
   getDisplayBeat,
   getOriginalBeats,
   getTotalBeats,
-  getTotalDurationSeconds
+  getTotalDurationSeconds,
+  getCountInBeats
 } from '../../src/lib/stores/player.svelte';
 
 describe('getDisplayBeat', () => {
@@ -87,6 +88,36 @@ describe('getDisplayBeat', () => {
 
     const displayBeat = getDisplayBeat();
     assert.strictEqual(displayBeat, 5);
+  });
+});
+
+describe('getCountInBeats', () => {
+  beforeEach(() => {
+    playerState.song = {
+      name: 'Test',
+      bpm: 60,
+      notes: []
+    };
+  });
+
+  test('returns 4 when timeSignature is undefined', () => {
+    playerState.song.timeSignature = undefined;
+    assert.strictEqual(getCountInBeats(), 4);
+  });
+
+  test('returns the numerator of a standard time signature (e.g. 3 for [3, 4])', () => {
+    playerState.song.timeSignature = [3, 4];
+    assert.strictEqual(getCountInBeats(), 3);
+  });
+
+  test('returns the numerator of a different time signature (e.g. 6 for [6, 8])', () => {
+    playerState.song.timeSignature = [6, 8];
+    assert.strictEqual(getCountInBeats(), 6);
+  });
+
+  test('returns 4 when timeSignature is an empty array', () => {
+    playerState.song.timeSignature = [] as unknown as [number, number];
+    assert.strictEqual(getCountInBeats(), 4);
   });
 });
 
