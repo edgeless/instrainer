@@ -33,8 +33,12 @@
   }
 
   // 単一の出力先コンテナ
+  let scoreArea: HTMLDivElement | undefined = $state();
   let scoreContainer: HTMLDivElement | undefined = $state();
   let containerWidth = $state(600);
+
+  // Auto-scroll tracking
+  let activeRowIdx = $state(-1);
 
   /** 行のレイアウト情報を一括計算する */
   function getRowLayout(W: number, row: number) {
@@ -146,10 +150,31 @@
   let animationFrameId: number = 0;
   let cursorStyle = $state({ display: 'none', left: '0px', top: '0px', height: '0px' });
 
+  // Auto-scroll logic when activeRowIdx changes
+  $effect(() => {
+    if ((playerState.isPlaying || playerState.isRecording) && activeRowIdx >= 0 && scoreArea && scoreContainer) {
+      const rowEl = scoreContainer.querySelector(`#score-row-${activeRowIdx}`) as HTMLElement;
+      if (rowEl) {
+        // Calculate the row's top relative to the container
+        const rowTop = rowEl.offsetTop;
+        // Use auto for the first scroll, smooth for subsequent ones
+        const behavior = scoreArea.scrollTop === 0 && activeRowIdx === 0 ? 'auto' : 'smooth';
+
+        scoreArea.scrollTo({
+          top: rowTop,
+          behavior
+        });
+      }
+    }
+  });
+
   $effect(() => {
     void rowLayouts;
     void viewMode;
     if (playerState.isPlaying || playerState.isRecording) {
+      // Reset active row when playback starts from the beginning or loops
+      activeRowIdx = -1;
+
       function updateCursor() {
         if (!scoreContainer) return;
 
@@ -177,6 +202,10 @@
         }
 
         if (targetRowIdx !== -1) {
+          if (targetRowIdx !== activeRowIdx) {
+            activeRowIdx = targetRowIdx;
+          }
+
           const layout = rowLayouts[targetRowIdx];
           const rowEl = scoreContainer.querySelector(`#score-row-${targetRowIdx}`) as HTMLElement;
 
@@ -254,6 +283,7 @@
       // Not playing, ensure cursor matches current static position if possible, or hide it
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
       cursorStyle.display = 'none';
+      activeRowIdx = -1;
     }
   });
 
@@ -351,7 +381,7 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="stab {viewMode === 'tab' ? 'active' : ''}" onclick={() => viewMode = 'tab'}>タブ譜</div>
   </div>
-  <div class="score-area">
+  <div bind:this={scoreArea} class="score-area">
     <div bind:this={scoreContainer} bind:clientWidth={containerWidth} class="score-container">
       {#each rowLayouts as layout, row}
         <div id="score-row-{row}" style="position:relative;">
