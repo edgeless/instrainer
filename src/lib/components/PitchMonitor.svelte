@@ -1,4 +1,9 @@
 <script lang="ts">
+  interface Props {
+    class?: string;
+  }
+  let { class: className = '' }: Props = $props();
+
   import { onMount, onDestroy } from 'svelte';
   import { playerState } from '$lib/stores/player.svelte';
   import { audioState } from '$lib/stores/audio.svelte';
@@ -195,7 +200,7 @@
   });
 </script>
 
-<div class="pitch-panel">
+<div class="pitch-panel {className}">
   <div class="sec-hdr" style="margin:-12px -12px 0; padding:8px 12px;">PITCH MONITOR</div>
 
   <div class="target-box">
