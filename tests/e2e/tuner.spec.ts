@@ -35,8 +35,14 @@ test.describe('Tuner Only Screen', () => {
       await dismissBtn.click();
     }
 
-    // NOTE: In CI environments without audio drivers, getUserMedia might fail
-    // even with fake devices, preventing the 'hide' class from being added.
-    // We just verify the button is clickable as done in home.spec.ts.
+    // Instead of strictly expecting success (which can be flaky in CI if fake mic fails),
+    // we verify the button was clickable and the component gracefully handled the interaction.
+    // If fake mic works, it gets class 'hide'. If it fails, an error message is shown.
+    // We wait for either the overlay to be hidden OR an error message to appear.
+    await expect(async () => {
+      const isHidden = await micOverlay.evaluate((node) => node.classList.contains('hide'));
+      const errorVisible = await page.locator('.mic-err').isVisible();
+      expect(isHidden || errorVisible).toBeTruthy();
+    }).toPass({ timeout: 5000 });
   });
 });
