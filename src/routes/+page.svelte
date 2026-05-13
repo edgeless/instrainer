@@ -6,6 +6,7 @@
   import ScorePanel from '$lib/components/ScorePanel.svelte';
   import Transport from '$lib/components/Transport.svelte';
   import ResultOverlay from '$lib/components/ResultOverlay.svelte';
+  import HistoryOverlay from '$lib/components/HistoryOverlay.svelte';
   import { playerState, setSong } from '$lib/stores/player.svelte';
   import { audioState, requestMic } from '$lib/stores/audio.svelte';
   import { scoreState } from '$lib/stores/score.svelte';
@@ -44,6 +45,7 @@
 </div>
 
 <ResultOverlay />
+<HistoryOverlay />
 
 <style>
 .app {

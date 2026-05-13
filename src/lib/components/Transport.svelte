@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { playerState, getTotalBeats, getOriginalBeats, getTotalDurationSeconds, getDisplayBeat, getCountInBeats } from '$lib/stores/player.svelte';
-  import { scoreState, resetScore } from '$lib/stores/score.svelte';
+  import { scoreState, resetScore, calculateScorePercentages, saveScoreHistory } from '$lib/stores/score.svelte';
   import { audioState, playClick, playDemoNote, stopDemoNotes, setMasterVolume, startDrone, stopDrone } from '$lib/stores/audio.svelte';
   import { midiToFreq, freqToCents, freqToMidi, getGrade, getTimingGrade, getCombinedGrade, keyToDroneFreq } from '$lib/utils/pitch';
 
@@ -710,10 +710,10 @@
     playerState.isPlaying = false;
     if (beatInterval) clearTimeout(beatInterval);
     playerState.status = 'idle';
-    if (!playerState.isFreeMode) runPostAnalysis();
-
-    // UI state change might need a tick, but audio blob is ready
     if (!playerState.isFreeMode) {
+      runPostAnalysis();
+      const percentages = calculateScorePercentages(scoreState.noteResults, playerState.song.notes.length, playerState.tolerance);
+      saveScoreHistory(playerState.currentSongKey, percentages);
       scoreState.showResultOverlay = true;
     }
   }

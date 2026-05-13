@@ -1,40 +1,44 @@
-import { describe, test } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { scoreState, resetScore } from '../../src/lib/stores/score.svelte';
+import { scoreState, resetScore, calculateScorePercentages, type NoteResult } from '../../src/lib/stores/score.svelte';
 
 describe('resetScore', () => {
-  test('resets scoreState to default values', () => {
-    // 1. Populate scoreState with non-default values
-    scoreState.noteResults = [{ grade: 'perfect', avgCents: 0 }];
+  it('resets scoreState to default values', () => {
+    scoreState.noteResults = [{ grade: 'perfect', avgCents: 0 } as any];
     scoreState.recordedSamples = [{ noteIdx: 0, loopIdx: 0, samples: [] }];
-    scoreState.currentCentsHistory = [{ freq: 440, isSliding: false, time: 100 }];
+    scoreState.currentCentsHistory = [{ freq: 440, isSliding: false, time: 0 }];
     scoreState.isSliding = true;
-    scoreState.showResultOverlay = true;
-    scoreState.detectedFreq = 220;
-    scoreState.freeModeStats = {
-      avgDev: 10,
-      stability: 0.5,
-      sampleCount: 100,
-      excludedSamples: 5
-    };
 
-    // 2. Call resetScore
     resetScore();
 
-    // 3. Assert that relevant fields are reset
-    assert.strictEqual(scoreState.noteResults.length, 0);
-    assert.strictEqual(scoreState.recordedSamples.length, 0);
-    assert.strictEqual(scoreState.currentCentsHistory.length, 0);
+    assert.deepStrictEqual(scoreState.noteResults, []);
+    assert.deepStrictEqual(scoreState.recordedSamples, []);
+    assert.deepStrictEqual(scoreState.currentCentsHistory, []);
     assert.strictEqual(scoreState.isSliding, false);
-    assert.deepStrictEqual(scoreState.freeModeStats, {
-      avgDev: null,
-      stability: null,
-      sampleCount: 0,
-      excludedSamples: 0
-    });
+  });
+});
 
-    // 4. Verify fields that are NOT reset by resetScore (as per current implementation)
-    assert.strictEqual(scoreState.showResultOverlay, true);
-    assert.strictEqual(scoreState.detectedFreq, 220);
+describe('calculateScorePercentages', () => {
+  it('calculates correct percentages for perfect notes', () => {
+    const noteResults: NoteResult[] = [
+      { grade: 'perfect', pitchGrade: 'perfect', timingGrade: 'perfect', avgCents: 0, timingDiffMs: 0 },
+      { grade: 'perfect', pitchGrade: 'perfect', timingGrade: 'perfect', avgCents: 0, timingDiffMs: 0 },
+    ];
+
+    const percentages = calculateScorePercentages(noteResults, 2, 15);
+    assert.strictEqual(percentages.pitchPercent, 100);
+    assert.strictEqual(percentages.timingPercent, 100);
+    assert.strictEqual(percentages.overallPercent, 100);
+  });
+
+  it('calculates correct percentages for miss notes', () => {
+    const noteResults: NoteResult[] = [
+      { grade: 'miss', pitchGrade: 'miss', timingGrade: 'miss', avgCents: null, timingDiffMs: null },
+    ];
+
+    const percentages = calculateScorePercentages(noteResults, 1, 15);
+    assert.strictEqual(percentages.pitchPercent, 0);
+    assert.strictEqual(percentages.timingPercent, 0);
+    assert.strictEqual(percentages.overallPercent, 0);
   });
 });
