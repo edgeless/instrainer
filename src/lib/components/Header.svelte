@@ -1,5 +1,6 @@
 <script lang="ts">
   import { playerState, setSong } from '$lib/stores/player.svelte';
+  import { scoreState } from '$lib/stores/score.svelte';
   import { audioState, requestMic, setOutputDevice, startDrone, stopDrone } from '$lib/stores/audio.svelte';
   import { SONGS } from '$lib/utils/songs';
   import { parseIRealURI } from '$lib/utils/ireal';
@@ -82,6 +83,7 @@
       repeat: isJa ? "リピート" : "Repeat",
       bpm: isJa ? "テンポ" : "BPM",
       freeMode: isJa ? "フリー採点" : "FREE MODE",
+      history: isJa ? "履歴" : "HISTORY",
     };
   });
 
@@ -147,6 +149,13 @@
     <div class="bpm-box">
       {i18n.bpm} <input type="number" bind:value={playerState.song.bpm} onwheel={onBpmWheel} min="10" max="300" class="bpm-input" title={i18n.scrollHint} disabled={playerState.status !== 'idle' || playerState.isFreeMode} />
     </div>
+    <button
+      class="btn-sm"
+      onclick={() => scoreState.showHistoryOverlay = true}
+      disabled={playerState.status !== 'idle' || playerState.isFreeMode}
+    >
+      {i18n.history}
+    </button>
     <button
       class="btn-sm {playerState.isFreeMode ? 'active free' : ''}"
       onclick={() => playerState.isFreeMode = !playerState.isFreeMode}

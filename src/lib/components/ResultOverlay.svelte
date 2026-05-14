@@ -1,34 +1,20 @@
 <script lang="ts">
-  import { scoreState } from '$lib/stores/score.svelte';
+  import { scoreState, calculateScorePercentages } from '$lib/stores/score.svelte';
   import { playerState } from '$lib/stores/player.svelte';
 
   function hideResult() {
     scoreState.showResultOverlay = false;
   }
 
+  let percentages = $derived(
+    calculateScorePercentages(scoreState.noteResults, playerState.song.notes.length, playerState.tolerance)
+  );
+
+  let pitchPercent = $derived(percentages.pitchPercent);
+  let timingPercent = $derived(percentages.timingPercent);
+  let overallPercent = $derived(percentages.overallPercent);
+
   let graded = $derived(scoreState.noteResults.filter((r) => r && r.grade));
-  let maxPitchScore = $derived(playerState.song.notes.length * playerState.tolerance);
-  let maxTimingScore = $derived(playerState.song.notes.length * 50); // 50ms as a reasonable perfect threshold
-
-  let totalPitchScore = $derived(
-    scoreState.noteResults.reduce((sum, r) => {
-      if (!r || r.pitchGrade === 'miss' || r.avgCents === null) return sum;
-      return sum + Math.max(0, playerState.tolerance - Math.abs(r.avgCents));
-    }, 0)
-  );
-
-  let totalTimingScore = $derived(
-    scoreState.noteResults.reduce((sum, r) => {
-      if (!r || r.timingGrade === 'miss' || r.timingDiffMs === null || r.timingDiffMs === undefined) return sum;
-      // プロフェッショナル基準として精度向上を促すため、100msを減点基準のベース（0点）に変更。
-      // これにより、ブラウザのジッター（約16-30ms）は許容しつつ、リズムの正確さを厳格に評価します。
-      return sum + Math.max(0, 100 - Math.abs(r.timingDiffMs)); 
-    }, 0)
-  );
-
-  let pitchPercent = $derived(maxPitchScore > 0 ? (totalPitchScore / maxPitchScore) * 100 : 0);
-  let timingPercent = $derived(maxTimingScore > 0 ? (totalTimingScore / (playerState.song.notes.length * 100)) * 100 : 0);
-  let overallPercent = $derived((pitchPercent + timingPercent) / 2);
   let scoreText = $derived(`${overallPercent.toFixed(1)}%`);
 
   let withCents = $derived(graded.filter((r) => r?.avgCents !== null));
