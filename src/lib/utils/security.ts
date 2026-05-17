@@ -5,13 +5,15 @@
  */
 export function escapeHtml(input: any): string {
   const str = String(input);
-  return str.replace(/[&<>"']/g, (m) => {
+  return str.replace(/[&<>"'`\/]/g, (m) => {
     return {
       '&': '&amp;',
       '<': '&lt;',
       '>': '&gt;',
       '"': '&quot;',
       "'": '&#39;',
+      '/': '&#x2F;',
+      '`': '&#x60;',
     }[m] as string;
   });
 }
