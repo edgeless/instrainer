@@ -8,7 +8,8 @@ import {
   getGrade,
   getTimingGrade,
   getCombinedGrade,
-  detectPitch
+  detectPitch,
+  keyToDroneFreq
 } from '../../src/lib/utils/pitch';
 
 describe('pitch utils', () => {
@@ -114,5 +115,44 @@ describe('pitch utils', () => {
 
     const detected = detectPitch(mockAnalyser, pitchBuf, sr);
     assert.strictEqual(detected, -1);
+  });
+
+  describe('keyToDroneFreq', () => {
+    test('returns null for undefined or empty key', () => {
+      assert.strictEqual(keyToDroneFreq(undefined), null);
+      assert.strictEqual(keyToDroneFreq(''), null);
+    });
+
+    test('returns null for invalid key strings', () => {
+      assert.strictEqual(keyToDroneFreq('H'), null);
+      assert.strictEqual(keyToDroneFreq('123'), null);
+      assert.strictEqual(keyToDroneFreq('Xyz'), null);
+    });
+
+    test('converts basic keys to correct drone frequencies (MIDI 36 base)', () => {
+      // C -> MIDI 36
+      assert.strictEqual(keyToDroneFreq('C'), midiToFreq(36));
+      // C# -> MIDI 37
+      assert.strictEqual(keyToDroneFreq('C#'), midiToFreq(37));
+      // Db -> MIDI 37
+      assert.strictEqual(keyToDroneFreq('Db'), midiToFreq(37));
+      // G -> MIDI 43 (36 + 7)
+      assert.strictEqual(keyToDroneFreq('G'), midiToFreq(43));
+      // A -> MIDI 45 (36 + 9)
+      assert.strictEqual(keyToDroneFreq('A'), midiToFreq(45));
+      // B -> MIDI 47 (36 + 11)
+      assert.strictEqual(keyToDroneFreq('B'), midiToFreq(47));
+    });
+
+    test('handles keys with suffixes', () => {
+      // Am -> A (MIDI 45)
+      assert.strictEqual(keyToDroneFreq('Am'), midiToFreq(45));
+      // Cmaj7 -> C (MIDI 36)
+      assert.strictEqual(keyToDroneFreq('Cmaj7'), midiToFreq(36));
+      // F#m7b5 -> F# (MIDI 42, 36 + 6)
+      assert.strictEqual(keyToDroneFreq('F#m7b5'), midiToFreq(42));
+      // Eb7 -> Eb (MIDI 39, 36 + 3)
+      assert.strictEqual(keyToDroneFreq('Eb7'), midiToFreq(39));
+    });
   });
 });
