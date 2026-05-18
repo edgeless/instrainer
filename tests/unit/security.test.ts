@@ -19,8 +19,19 @@ describe('escapeHtml', () => {
     assert.strictEqual(escapeHtml("'test'"), '&#39;test&#39;');
   });
 
+  test('escapes /', () => {
+    assert.strictEqual(escapeHtml('</a>'), '&lt;&#x2F;a&gt;');
+  });
+
+  test('escapes `', () => {
+    assert.strictEqual(escapeHtml('`test`'), '&#x60;test&#x60;');
+  });
+
   test('escapes multiple characters', () => {
-    assert.strictEqual(escapeHtml('<a href="x&y">test\'s</a>'), '&lt;a href=&quot;x&amp;y&quot;&gt;test&#39;s&lt;/a&gt;');
+    assert.strictEqual(
+      escapeHtml('<a href="x&y">test\'s / `</a>'),
+      '&lt;a href=&quot;x&amp;y&quot;&gt;test&#39;s &#x2F; &#x60;&lt;&#x2F;a&gt;'
+    );
   });
 
   test('coerces non-strings to string', () => {
