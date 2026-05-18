@@ -441,7 +441,6 @@
         const yinLatencyMs = 3000 / firstFreq;
         timingDiffMs = (firstSampleTime - audioState.latencyCompensationMs - yinLatencyMs) - expectedNoteTimeMs;
         timingGrade = getTimingGrade(Math.abs(timingDiffMs));
-        console.log(`[Timing] Note ${rs.noteIdx}: diff=${Math.round(timingDiffMs)}ms, grade=${timingGrade}`);
       }
 
       const combinedGrade = getCombinedGrade(pitchGrade, timingGrade);
