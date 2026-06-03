@@ -28,7 +28,8 @@ const config = {
 				'media-src': ['self', 'blob:'],
 				'connect-src': ['self', 'blob:'],
 				'object-src': ['none'],
-				'base-uri': ['self']
+				'base-uri': ['self'],
+				'manifest-src': ['self']
 			}
 		}
 	}
