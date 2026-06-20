@@ -41,8 +41,10 @@ const NOTE_TO_OFFSET: Record<string, number> = {
   'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11
 };
 
+const CHORD_ROOT_REGEX = /^([A-G])([#b])?/;
+
 function getRootMidi(chord: string): number {
-  const match = chord.match(/^([A-G])([#b])?/);
+  const match = chord.match(CHORD_ROOT_REGEX);
   if (!match) return 36; // Default to C2
   
   const root = match[1];
@@ -65,14 +67,29 @@ function midiToName(midi: number): string {
 }
 
 /**
+ * Cached regular expressions for iReal URI parsing
+ */
+const IREAL_PROTOCOL_REGEX = /irealb:\/\/([^"]*)/;
+const IREAL_PARTS_SPLIT_REGEX = /=+/;
+const IREAL_CLEAN_MARKERS_REGEX = /\*\w/g;
+const IREAL_CLEAN_COMMENTS_REGEX = /<.*?>/g;
+const IREAL_CLEAN_TIME_SIG_REGEX = /T\d+/g;
+const IREAL_CLEAN_EMPTY_CELLS_REGEX = /XyQ|QyX/g;
+const IREAL_CLEAN_SPACERS_REGEX = /Y+/g;
+const IREAL_CLEAN_ENDINGS_REGEX = /N\d/g;
+const IREAL_CLEAN_FERMI_REGEX = /f/g;
+const IREAL_CLEAN_PAUSE_REGEX = /p/g;
+const IREAL_MEASURE_SPLIT_REGEX = /\||LZ|\[|\]|Z|{|}/;
+const IREAL_CHORD_REGEX = /[A-G][#b]?[\+\-\^\dhob#suadlt]*(\/[A-G][#b]?)?|n/g;
+
+/**
  * Simplified Parser
  */
 export function parseIRealURI(uri: string): Song | null {
   try {
-    const protocolRegex = /irealb:\/\/([^"]*)/;
     const musicPrefix = "1r34LbKcu7";
     
-    const match = protocolRegex.exec(uri);
+    const match = IREAL_PROTOCOL_REGEX.exec(uri);
     if (!match) return null;
     
     const decoded = decodeURIComponent(match[1]);
@@ -80,7 +97,7 @@ export function parseIRealURI(uri: string): Song | null {
     if (sections.length < 1) return null;
     
     const firstSongData = sections[0];
-    const parts = firstSongData.split(/=+/).filter(x => x !== "");
+    const parts = firstSongData.split(IREAL_PARTS_SPLIT_REGEX).filter(x => x !== "");
     
     let title = parts[0] || "Imported Song";
     let keyStr = parts[3] || "";
@@ -100,20 +117,18 @@ export function parseIRealURI(uri: string): Song | null {
     
     // Cleaning
     const cleaned = unscrambled
-      .replace(/\*\w/g, '')      // Section markers (*A, *B...)
-      .replace(/<.*?>/g, '')     // Comments
-      .replace(/T\d+/g, '')      // Time signatures (T44...)
-      .replace(/XyQ|QyX/g, ' ')  // Empty cells
-      .replace(/Y+/g, ' ')       // Spacers
-      .replace(/N\d/g, ' ')      // Numbered endings (N1, N2...)
-      .replace(/f/g, ' ')        // Fermi etc
-      .replace(/p/g, ' ');       // Pause slash
+      .replace(IREAL_CLEAN_MARKERS_REGEX, '')      // Section markers (*A, *B...)
+      .replace(IREAL_CLEAN_COMMENTS_REGEX, '')     // Comments
+      .replace(IREAL_CLEAN_TIME_SIG_REGEX, '')      // Time signatures (T44...)
+      .replace(IREAL_CLEAN_EMPTY_CELLS_REGEX, ' ')  // Empty cells
+      .replace(IREAL_CLEAN_SPACERS_REGEX, ' ')       // Spacers
+      .replace(IREAL_CLEAN_ENDINGS_REGEX, ' ')      // Numbered endings (N1, N2...)
+      .replace(IREAL_CLEAN_FERMI_REGEX, ' ')        // Fermi etc
+      .replace(IREAL_CLEAN_PAUSE_REGEX, ' ');       // Pause slash
     
     // Split by bar lines or markers to detect measures
     // iReal markers: | (single), [ (double), ] (double), Z (final), { (repeat), } (repeat), LZ (bar line)
-    const measureStrings = cleaned.split(/\||LZ|\[|\]|Z|{|}/).filter(m => m.trim().length > 0);
-    
-    const chordRegex = /[A-G][#b]?[\+\-\^\dhob#suadlt]*(\/[A-G][#b]?)?|n/g;
+    const measureStrings = cleaned.split(IREAL_MEASURE_SPLIT_REGEX).filter(m => m.trim().length > 0);
     
     const notes: Note[] = [];
     let currentBeat = 0;
@@ -121,7 +136,7 @@ export function parseIRealURI(uri: string): Song | null {
     let lastMeasureChords: string[] = [];
     
     for (const mStr of measureStrings) {
-      let chords: string[] | null = mStr.match(chordRegex);
+      let chords: string[] | null = mStr.match(IREAL_CHORD_REGEX);
       
       // Handle "Kcl" (repeat measure) or empty measures
       if (mStr.includes("Kcl") && lastMeasureChords.length > 0) {
