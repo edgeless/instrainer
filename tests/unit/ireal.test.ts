@@ -34,9 +34,9 @@ describe('parseIRealURI', () => {
 
   test('handles malformed URI components by returning null (catch block)', () => {
     // This should trigger decodeURIComponent error
-    const malformedUri = 'irealb://%E0%A0%A0';
+    const malformedUri = 'irealb://%ZZ';
 
-    // We expect it to catch the error, log it, and return null
+    // We expect it to catch the error and return null
     const result = parseIRealURI(malformedUri);
     assert.strictEqual(result, null);
   });
