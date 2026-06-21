@@ -61,7 +61,6 @@ if (typeof window !== 'undefined' && (window.AudioContext || (window as any).web
   try {
     const AC = window.AudioContext || (window as any).webkitAudioContext;
     audioState.audioCtx = new AC();
-    console.log("[Audio] Sample rate:", audioState.audioCtx.sampleRate);
     audioState.analyserNode = audioState.audioCtx.createAnalyser();
     audioState.analyserNode.fftSize = 4096;
     audioState.analyserNode.smoothingTimeConstant = 0.1;
@@ -122,7 +121,6 @@ export async function requestMic(deviceIdOrEvent?: string | Event) {
     
     function initNodes() {
       if (!audioState.audioCtx) return;
-      console.log("[Audio] initNodes called");
       audioState.analyserNode = audioState.audioCtx.createAnalyser();
       audioState.analyserNode.fftSize = 4096;
       audioState.analyserNode.smoothingTimeConstant = 0.1;

@@ -10,10 +10,10 @@
       registerSW({
         immediate: true,
         onRegistered(r: ServiceWorkerRegistration | undefined) {
-          console.log('SW Registered:', r);
+          // SW registered successfully
         },
         onRegisterError(error: Error) {
-          console.log('SW registration error', error);
+          console.error('SW registration error', error);
         }
       });
     }
